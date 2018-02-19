@@ -14,6 +14,9 @@
 #include "platform-conf.h"
 #endif /* PLATFORM_CONF_H */
 
+/*---------------------------------------------------------------------------*/
+#include "exp5438-def.h"
+/*---------------------------------------------------------------------------*/
 
 #ifndef NETSTACK_CONF_RADIO
 #define NETSTACK_CONF_RADIO   cc2420_driver
@@ -73,7 +76,8 @@
 
 #define WITH_ASCII 1
 
-#define PROCESS_CONF_NUMEVENTS 8
+// FIXME: PROCESS_CONF_NUMEVENTS probably needs to be removed
+/* #define PROCESS_CONF_NUMEVENTS 8 */
 #define PROCESS_CONF_STATS 1
 /*#define PROCESS_CONF_FASTPOLL    4*/
 
@@ -91,6 +95,9 @@
 #define SICSLOWPAN_CONF_FRAG                    1
 #define SICSLOWPAN_CONF_MAXAGE                  8
 #endif /* SICSLOWPAN_CONF_FRAG */
+// FIXME: Undefing SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS, but not sure if it should be,
+//        should we just not define in the first place?
+#undef SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS
 #define SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS       2
 #else /* NETSTACK_CONF_WITH_IPV6 */
 #define UIP_CONF_IP_FORWARD      1
