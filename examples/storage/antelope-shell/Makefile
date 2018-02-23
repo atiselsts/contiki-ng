@@ -2,6 +2,7 @@ CONTIKI = ../../..
 
 MODULES += os/storage/antelope os/services/unit-test
 
-all: shell-db
+CONTIKI_PROJECT = shell-db
+all: $(CONTIKI_PROJECT)
 
 include $(CONTIKI)/Makefile.include
