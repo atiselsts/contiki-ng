@@ -146,7 +146,11 @@
  * 0 for PM0, 1 for PM1 and 2 for PM2
  */
 #ifndef LPM_CONF_MAX_PM
+#if CONTIKI_BOARD_ORION
+#define LPM_CONF_MAX_PM       0 /* Orion is typically mains-powered */
+#else /* CONTIKI_BOARD_ORION */
 #define LPM_CONF_MAX_PM       2
+#endif /* CONTIKI_BOARD_ORION */
 #endif
 
 #ifndef LPM_CONF_STATS
