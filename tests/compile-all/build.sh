@@ -120,7 +120,7 @@ do
             example_dir=`dirname "$example"`
 
             # Build the goal
-            $LOG_INFO make -C "$example_dir" -j TARGET=$platform BOARD=$board $GOAL
+            $LOG_INFO make -C "$example_dir" -j TARGET=$platform BOARD=$board clean $GOAL
             if make -C "$example_dir" -j TARGET=$platform BOARD=$board $GOAL 2>&1 >build.log
             then
                 $LOG_INFO "..done"
