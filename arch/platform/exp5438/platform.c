@@ -67,7 +67,7 @@
 #define PRINTF(...)
 #endif
 
-extern unsigned char node_mac[8];
+unsigned char node_mac[8];
 
 //SENSORS(&button_sensor);
 /*---------------------------------------------------------------------------*/
