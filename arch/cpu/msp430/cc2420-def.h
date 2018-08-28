@@ -7,13 +7,18 @@
  *         - the  EXP5438 board
  */
 
-
 #ifndef CC2420_DEF_H_
 #define CC2420_DEF_H_
 
-/* the low-level radio driver */
+/* Configure radio driver */
+#ifndef NETSTACK_CONF_RADIO
 #define NETSTACK_CONF_RADIO   cc2420_driver
+#endif /* NETSTACK_CONF_RADIO */
 
+/* Platform-specific (H/W) AES implementation */
+#ifndef AES_128_CONF
+#define AES_128_CONF cc2420_aes_128_driver
+#endif /* AES_128_CONF */
 
 /* Delay between GO signal and SFD: radio fixed delay + 4Bytes preample + 1B SFD -- 1Byte time is 32us
  * ~327us + 129preample = 456 us */
@@ -95,12 +100,5 @@
  /* DISABLE CSn (active low) */
 #define CC2420_SPI_DISABLE()    (CC2420_CSN_PORT(OUT) |=  BV(CC2420_CSN_PIN))
 #define CC2420_SPI_IS_ENABLED() ((CC2420_CSN_PORT(OUT) & BV(CC2420_CSN_PIN)) != BV(CC2420_CSN_PIN))
-
-
-/* Platform-specific (H/W) AES implementation */
-#ifndef AES_128_CONF
-#define AES_128_CONF cc2420_aes_128_driver
-#endif /* AES_128_CONF */
-
 
 #endif /* CC2420_DEF_H_ */

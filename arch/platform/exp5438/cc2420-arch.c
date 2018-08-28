@@ -37,13 +37,15 @@
 #include "dev/leds.h"
 #include "isr_compat.h"
 
+#ifdef CC2420_CONF_SFD_TIMESTAMPS
+#define CONF_SFD_TIMESTAMPS CC2420_CONF_SFD_TIMESTAMPS
+#endif /* CC2420_CONF_SFD_TIMESTAMPS */
+
 #ifndef CONF_SFD_TIMESTAMPS
 #define CONF_SFD_TIMESTAMPS 0
 #endif /* CONF_SFD_TIMESTAMPS */
 
-#ifdef CONF_SFD_TIMESTAMPS
 #include "cc2420-arch-sfd.h"
-#endif
 
 /*---------------------------------------------------------------------------*/
 ISR(CC2420_IRQ, cc24240_fifop_interrupt)

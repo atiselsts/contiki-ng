@@ -43,9 +43,7 @@
 #define CONF_SFD_TIMESTAMPS 0
 #endif /* CONF_SFD_TIMESTAMPS */
 
-#ifdef CONF_SFD_TIMESTAMPS
 #include "cc2420-arch-sfd.h"
-#endif
 
 /*---------------------------------------------------------------------------*/
 ISR(CC2420_IRQ, cc2420_port1_interrupt)

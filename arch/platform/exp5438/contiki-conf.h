@@ -12,11 +12,6 @@
 #include "msp430-def.h"
 /*---------------------------------------------------------------------------*/
 
-/* Configure radio driver */
-#ifndef NETSTACK_CONF_RADIO
-#define NETSTACK_CONF_RADIO   cc2420_driver
-#endif /* NETSTACK_CONF_RADIO */
-
 /* The TSCH default slot length of 10ms is a bit too short for this platform,
  * use 15ms instead. */
 #ifndef TSCH_CONF_DEFAULT_TIMESLOT_LENGTH

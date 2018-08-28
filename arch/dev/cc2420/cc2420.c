@@ -53,6 +53,7 @@ enum write_ram_order {
   WRITE_RAM_REVERSE
 };
 
+#include <stdio.h>
 #define DEBUG 0
 #if DEBUG
 #include <stdio.h>
@@ -290,6 +291,7 @@ get_object(radio_param_t param, void *dest, size_t size)
     if(size != sizeof(rtimer_clock_t) || !dest) {
       return RADIO_RESULT_INVALID_VALUE;
     }
+    printf("cc2420 ts=%u\n", (unsigned)cc2420_sfd_start_time);
     *(rtimer_clock_t*)dest = cc2420_sfd_start_time;
     return RADIO_RESULT_OK;
 #else
@@ -657,6 +659,8 @@ cc2420_transmit(unsigned short payload_len)
 {
   int i;
 
+  printf("tx %u\n", payload_len);
+
   GET_LOCK();
 
   /* The TX FIFO can only hold one packet. Make sure to not overrun
@@ -686,6 +690,7 @@ cc2420_transmit(unsigned short payload_len)
            we just started receiving a packet, so we drop the
            transmission. */
         RELEASE_LOCK();
+        printf("tx coll\n");
         return RADIO_TX_COLLISION;
       }
       if(receive_on) {
@@ -706,6 +711,7 @@ cc2420_transmit(unsigned short payload_len)
       }
 
       RELEASE_LOCK();
+      printf("tx ok\n");
       return RADIO_TX_OK;
     }
   }
@@ -714,6 +720,7 @@ cc2420_transmit(unsigned short payload_len)
      transmitted because of other channel activity. */
   PRINTF("cc2420: do_send() transmission never started\n");
 
+  printf("tx coll\n");
   RELEASE_LOCK();
   return RADIO_TX_COLLISION;
 }

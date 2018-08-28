@@ -51,7 +51,7 @@
 #endif
 
 /*---------------------------------------------------------------------------*/
-ISR(TIMER1_A0, timera0)
+ISR(TIMER0_B0, timerb0)
 {
   watchdog_start();
 
@@ -70,7 +70,7 @@ rtimer_arch_init(void)
   dint();
 
   /* CCR0 interrupt enabled, interrupt occurs when timer equals CCR0. */
-  TA1CCTL0 = CCIE;
+  TBCCTL0 = CCIE;
 
   /* Enable interrupts. */
   eint();
@@ -81,8 +81,8 @@ rtimer_arch_now(void)
 {
   rtimer_clock_t t1, t2;
   do {
-    t1 = TA1R;
-    t2 = TA1R;
+    t1 = TBR;
+    t2 = TBR;
   } while(t1 != t2);
   return t1;
 }
@@ -92,6 +92,6 @@ rtimer_arch_schedule(rtimer_clock_t t)
 {
   PRINTF("rtimer_arch_schedule time %u\n", t);
 
-  TA1CCR0 = t;
+  TBCCR0 = t;
 }
 /*---------------------------------------------------------------------------*/

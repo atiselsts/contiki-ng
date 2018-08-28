@@ -49,6 +49,8 @@
 #include "sys/etimer.h"
 #include "sys/process.h"
 
+#include <stdio.h>
+
 static struct etimer *timerlist;
 static clock_time_t next_expiration;
 
@@ -63,9 +65,12 @@ update_time(void)
 
   if (timerlist == NULL) {
     next_expiration = 0;
+
+//    printf("update time: no timers\n");
+
   } else {
     now = clock_time();
-    t = timerlist;
+    t = timerlist;     
     /* Must calculate distance to next time into account due to wraps */
     tdist = t->timer.start + t->timer.interval - now;
     for(t = t->next; t != NULL; t = t->next) {
@@ -74,6 +79,8 @@ update_time(void)
       }
     }
     next_expiration = now + tdist;
+
+//    printf("update time now=%lu next=%lu\n", now, next_expiration);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -115,6 +122,7 @@ PROCESS_THREAD(etimer_process, ev, data)
     
     for(t = timerlist; t != NULL; t = t->next) {
       if(timer_expired(&t->timer)) {
+//        printf("e\n");
 	if(process_post(t->p, PROCESS_EVENT_TIMER, t) == PROCESS_ERR_OK) {
 	  
 	  /* Reset the process ID of the event timer, to signal that the
@@ -129,9 +137,11 @@ PROCESS_THREAD(etimer_process, ev, data)
 	  t->next = NULL;
 	  update_time();
 	  goto again;
-	} else {
+  } else {
 	  etimer_request_poll();
 	}
+      } else {
+//        printf("ne\n");
       }
       u = t;
     }

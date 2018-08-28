@@ -37,6 +37,8 @@
 #include "dev/watchdog.h"
 #include "isr_compat.h"
 
+#include <stdio.h>
+
 #define INTERVAL (RTIMER_ARCH_SECOND / CLOCK_SECOND)
 
 #define MAX_TICKS (~((clock_time_t)0) / 2)
@@ -46,35 +48,35 @@
 static volatile unsigned long seconds;
 
 static volatile clock_time_t count = 0;
-/* last_tar is used for calculating clock_fine, last_ccr might be better? */
-static volatile uint16_t last_tar = 0;
+/* last_tbr is used for calculating clock_fine, last_ccr might be better? */
+static volatile uint16_t last_tbr = 0;
 /*---------------------------------------------------------------------------*/
 static inline uint16_t
-read_tar(void)
+read_tbr(void)
 {
   /* Same as clock_counter(), but can be inlined */
   uint16_t t1, t2;
   do {
-    t1 = TA1R;
-    t2 = TA1R;
+    t1 = TBR;
+    t2 = TBR;
   } while(t1 != t2);
   return t1;
 }
 /*---------------------------------------------------------------------------*/
-ISR(TIMER1_A1, timera1)
+ISR(TIMER0_B1, timerb1)
 {
   /* watchdog_start(); */
 
-  if(TA1IV == 2) {
+  if(TBIV == 2) {
 
     /* HW timer bug fix: Interrupt handler called before TR==CCR.
      * Occurs when timer state is toggled between STOP and CONT. */
-    while(TA1CTL & MC1 && TA1CCR1 - TA1R == 1);
+    while(TBCTL & MC1 && TBCCR1 - TBR == 1);
 
-    last_tar = read_tar();
+    last_tbr = read_tbr();
     /* Make sure interrupt time is future */
-    while(!CLOCK_LT(last_tar, TA1CCR1)) {
-      TA1CCR1 += INTERVAL;
+    while(!CLOCK_LT(last_tbr, TBCCR1)) {
+      TBCCR1 += INTERVAL;
       ++count;
 
       /* Make sure the CLOCK_CONF_SECOND is a power of two, to ensure
@@ -88,13 +90,18 @@ ISR(TIMER1_A1, timera1)
       if(count % CLOCK_CONF_SECOND == 0) {
         ++seconds;
         energest_flush();
+
+        // printf("pending %u diff=%ld\n",
+        //     etimer_pending(), etimer_next_expiration_time() - count);
       }
-      last_tar = read_tar();
+      last_tbr = read_tbr();
     }
+
 
     if(etimer_pending() &&
        (etimer_next_expiration_time() - count - 1) > MAX_TICKS) {
       etimer_request_poll();
+//      printf("exit\n");
       LPM4_EXIT;
     }
 
@@ -120,8 +127,8 @@ clock_time(void)
 void
 clock_set(clock_time_t clock, clock_time_t fclock)
 {
-  TA1R = fclock;
-  TA1CCR1 = fclock + INTERVAL;
+  TBR = fclock;
+  TBCCR1 = fclock + INTERVAL;
   count = clock;
 }
 /*---------------------------------------------------------------------------*/
@@ -135,10 +142,10 @@ unsigned short
 clock_fine(void)
 {
   unsigned short t;
-  /* Assign last_tar to local varible that can not be changed by interrupt */
-  t = last_tar;
-  /* perform calc based on t, TAR will not be changed during interrupt */
-  return (unsigned short) (TA1R - t);
+  /* Assign last_tbr to local varible that can not be changed by interrupt */
+  t = last_tbr;
+  /* perform calc based on t, TBR will not be changed during interrupt */
+  return (unsigned short) (TBR - t);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -153,22 +160,22 @@ clock_init(void)
 /*   TA1CTL = TASSEL0 | TACLR | ID_1; */
 
 #if INTERVAL==32768/CLOCK_SECOND
-  TA1CTL = TASSEL0 | TACLR;
+  TBCTL = TBSSEL0 | TBCLR;
 #elif INTERVAL==16384/CLOCK_SECOND
-  TA1CTL = TASSEL0 | TACLR | ID_1;
+  TBCTL = TBSSEL0 | TBCLR | ID_1;
 #else
 #error NEED TO UPDATE clock.c to match interval!
 #endif
 
   /* Initialize ccr1 to create the X ms interval. */
   /* CCR1 interrupt enabled, interrupt occurs when timer equals CCR1. */
-  TA1CCTL1 = CCIE;
+  TBCCTL1 = CCIE;
 
   /* Interrupt after X ms. */
-  TA1CCR1 = INTERVAL;
+  TBCCR1 = INTERVAL;
 
   /* Start Timer_A in continuous mode. */
-  TA1CTL |= MC1;
+  TBCTL |= MC1;
 
   count = 0;
 
@@ -226,8 +233,8 @@ clock_counter(void)
 {
   rtimer_clock_t t1, t2;
   do {
-    t1 = TA1R;
-    t2 = TA1R;
+    t1 = TBR;
+    t2 = TBR;
   } while(t1 != t2);
   return t1;
 }

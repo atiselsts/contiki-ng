@@ -160,6 +160,12 @@ main(void)
       watchdog_periodic();
     } while(r > 0);
 
+//     if(P1IN & (1 << 3)) {
+//       printf("sfd\n");
+//     } else { 
+// //      printf("low\n!");     
+//     }
+
     platform_idle();
   }
 #endif

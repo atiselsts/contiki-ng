@@ -819,7 +819,12 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
   while(1) {
     unsigned long delay;
 
+    printf("tsch eb loop\n");
+
     if(tsch_is_associated && tsch_current_eb_period > 0) {
+      
+      printf("tsch eb consider=%u\n", tsch_queue_packet_count(&tsch_eb_address));
+      
       /* Enqueue EB only if there isn't already one in queue */
       if(tsch_queue_packet_count(&tsch_eb_address) == 0) {
         uint8_t hdr_len = 0;
@@ -827,6 +832,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
         /* Prepare the EB packet and schedule it to be sent */
         if(tsch_packet_create_eb(&hdr_len, &tsch_sync_ie_offset) > 0) {
           struct tsch_packet *p;
+          printf("eb enqueue\n");
           /* Enqueue EB packet, for a single transmission only */
           if(!(p = tsch_queue_add_packet(&tsch_eb_address, 1, NULL, NULL))) {
             LOG_ERR("! could not enqueue EB packet\n");
@@ -847,6 +853,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
     } else {
       delay = TSCH_EB_PERIOD;
     }
+    printf("delay=%u\n", (unsigned)delay);
     etimer_set(&eb_timer, delay);
     PROCESS_WAIT_UNTIL(etimer_expired(&eb_timer));
   }

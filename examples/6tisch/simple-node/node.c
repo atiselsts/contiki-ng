@@ -51,6 +51,7 @@
 PROCESS(node_process, "RPL Node");
 AUTOSTART_PROCESSES(&node_process);
 
+extern void cc2420_arch_sfd_init(void);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(node_process, ev, data)
 {
@@ -60,9 +61,11 @@ PROCESS_THREAD(node_process, ev, data)
 
   is_coordinator = 0;
 
-#if CONTIKI_TARGET_COOJA
+//#if CONTIKI_TARGET_COOJA
   is_coordinator = (node_id == 1);
-#endif
+//#endif
+
+  cc2420_arch_sfd_init(); //XXX
 
   if(is_coordinator) {
     NETSTACK_ROUTING.root_start();

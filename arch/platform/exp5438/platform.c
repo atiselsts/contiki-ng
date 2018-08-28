@@ -69,7 +69,6 @@
 
 unsigned char node_mac[8];
 
-//SENSORS(&button_sensor);
 /*---------------------------------------------------------------------------*/
 static void
 set_rime_addr(void)
@@ -96,28 +95,33 @@ set_rime_addr(void)
 void
 platform_idle(void)
 {
-  int s = splhigh();          /* Disable interrupts. */
-  /* uart1_active is for avoiding LPM3 when still sending or receiving */
-  if(process_nevents() != 0 || uart1_active()) {
-    splx(s);                  /* Re-enable interrupts. */
-  } else {
-    /* Re-enable interrupts and go to sleep atomically. */
-    ENERGEST_SWITCH(ENERGEST_TYPE_CPU, ENERGEST_TYPE_LPM);
-    watchdog_stop();
-    _BIS_SR(GIE | SCG0 | SCG1 | CPUOFF); /* LPM3 sleep. This
-                                            statement will block
-                                            until the CPU is
-                                            woken up by an
-                                            interrupt that sets
-                                            the wake up flag. */
+  // int s = splhigh();          /* Disable interrupts. */
+  // splx(s);                  /* Re-enable interrupts. */
+   // int s = splhigh();          /* Disable interrupts. */
+  // /* uart1_active is for avoiding LPM3 when still sending or receiving */
+  // if(process_nevents() != 0 || uart1_active()) {
+  //   splx(s);                  /* Re-enable interrupts. */
+  // } else {
+  //   /* Re-enable interrupts and go to sleep atomically. */
+  //   ENERGEST_SWITCH(ENERGEST_TYPE_CPU, ENERGEST_TYPE_LPM);
+  //   watchdog_stop();
+  //   _BIS_SR(GIE | SCG0 | SCG1 | CPUOFF); /* LPM3 sleep. This
+  //                                           statement will block
+  //                                           until the CPU is
+  //                                           woken up by an
+  //                                           interrupt that sets
+  //                                           the wake up flag. */
 
-    /* We get the current processing time for interrupts that was
-       done during the LPM and store it for next time around.  */
-    dint();
-    eint();
-    watchdog_start();
-    ENERGEST_SWITCH(ENERGEST_TYPE_LPM, ENERGEST_TYPE_CPU);
-  }
+  //   /* We get the current processing time for interrupts that was
+  //      done during the LPM and store it for next time around.  */
+  //   dint();
+  //   eint();
+  //   watchdog_start();
+  //   ENERGEST_SWITCH(ENERGEST_TYPE_LPM, ENERGEST_TYPE_CPU);
+  // }
+
+//  printf("idle\n");
+  watchdog_periodic();
 }
 /*--------------------------------------------------------------------------*/
 void

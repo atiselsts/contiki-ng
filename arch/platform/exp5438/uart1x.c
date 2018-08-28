@@ -46,7 +46,7 @@
 
 static int (*uart1_input_handler)(unsigned char c);
 
-static volatile uint8_t transmitting;
+static uint8_t transmitting;
 
 /*---------------------------------------------------------------------------*/
 uint8_t
@@ -64,16 +64,24 @@ uart1_set_input(int (*input)(unsigned char c))
 void
 uart1_writeb(unsigned char c)
 {
-  watchdog_periodic();
+  transmitting = 1;
+
+//  watchdog_periodic();
   /* Loop until the transmission buffer is available. */
-  while((UCA1STAT & UCBUSY));
+//  while((UCA1STAT & UCBUSY));
 
   /* Transmit the data. */
   UCA1TXBUF = c;
+
+//  asm("nop");
+
+//  UCA1TXBUF = 'a';
+
+  /* Loop until the transmission buffer is available. */
+//  while((UCA1STAT & UCBUSY));
+
+  transmitting = 0;
 }
-/*---------------------------------------------------------------------------*/
-#if ! NETSTACK_CONF_WITH_IPV4 /* If NETSTACK_CONF_WITH_IPV4 is defined, putchar() is defined by the SLIP driver */
-#endif /* ! NETSTACK_CONF_WITH_IPV4 */
 /*---------------------------------------------------------------------------*/
 /**
  * Initalize the RS232 port.
@@ -107,22 +115,22 @@ uart1_init(unsigned long ubr)
   UCA1IE |= UCRXIE;                        /* Enable UCA1 RX interrupt */
 }
 /*---------------------------------------------------------------------------*/
-ISR(USCI_A1, uart1_rx_interrupt)
-{
-  uint8_t c;
+// ISR(USCI_A1, uart1_rx_interrupt)
+// {
+//   uint8_t c;
 
-  /*leds_toggle(LEDS_ALL);*/
-  if(UCA1IV == 2) {
-    if(UCA1STAT & UCRXERR) {
-      c = UCA1RXBUF;   /* Clear error flags by forcing a dummy read. */
-    } else {
-      c = UCA1RXBUF;
-      if(uart1_input_handler != NULL) {
-        if(uart1_input_handler(c)) {
-          LPM4_EXIT;
-        }
-      }
-    }
-  }
-}
+//   /*leds_toggle(LEDS_ALL);*/
+//   if(UCA1IV == 2) {
+//     if(UCA1STAT & UCRXERR) {
+//       c = UCA1RXBUF;   /* Clear error flags by forcing a dummy read. */
+//     } else {
+//       c = UCA1RXBUF;
+//       if(uart1_input_handler != NULL) {
+//         if(uart1_input_handler(c)) {
+//           LPM4_EXIT;
+//         }
+//       }
+//     }
+//   }
+// }
 /*---------------------------------------------------------------------------*/
