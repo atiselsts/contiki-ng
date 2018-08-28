@@ -43,17 +43,6 @@
  * Definitions below are dictated by the hardware and not really
  * changeable!
  */
-/* Delay between GO signal and SFD: radio fixed delay + 4Bytes preample + 1B SFD -- 1Byte time is 32us
- * ~327us + 129preample = 456 us */
-#define RADIO_DELAY_BEFORE_TX ((unsigned)US_TO_RTIMERTICKS(456))
-/* Delay between GO signal and start listening
- * ~50us delay + 129preample + ?? = 183 us */
-#define RADIO_DELAY_BEFORE_RX ((unsigned)US_TO_RTIMERTICKS(183))
-/* Delay between the SFD finishes arriving and it is detected in software */
-#define RADIO_DELAY_BEFORE_DETECT 0
-
-/* Disable TSCH frame filtering */
-#define TSCH_CONF_HW_FRAME_FILTERING  0
 
 #define PLATFORM_HAS_LEDS    1
 #define PLATFORM_HAS_BUTTON  1
@@ -62,11 +51,15 @@
 #define PLATFORM_HAS_SHT11   1
 #define PLATFORM_HAS_RADIO   1
 
+#include "cc2420-def.h"
+
+#define CC2420_CONF_SYMBOL_LOOP_COUNT 800
+
+/* Disable TSCH frame filtering */
+#define TSCH_CONF_HW_FRAME_FILTERING  0
+
 /* CPU target speed in Hz */
 #define F_CPU 3900000uL /*2457600uL*/
-
-/* the low-level radio driver */
-#define NETSTACK_CONF_RADIO   cc2420_driver
 
 /* LED ports */
 #define LEDS_PxDIR P5DIR
@@ -83,10 +76,6 @@
 for SFD timestamping */
 #endif /* DCOSYNCH_CONF_ENABLED */
 
-#ifndef CC2420_CONF_SFD_TIMESTAMPS
-#define CC2420_CONF_SFD_TIMESTAMPS (MAC_CONF_WITH_TSCH) /* TSCH needs SFD timestamping */
-#endif /* CC2420_CONF_SFD_TIMESTAMPS */
-
 #ifndef DCOSYNCH_CONF_PERIOD
 #define DCOSYNCH_CONF_PERIOD 30
 #endif /* DCOSYNCH_CONF_PERIOD */
@@ -97,9 +86,6 @@ for SFD timestamping */
 
 #define CFS_CONF_OFFSET_TYPE    long
 
-
-/* Use the first 64k of external flash for node configuration */
-#define NODE_ID_XMEM_OFFSET     (0 * XMEM_ERASE_UNIT_SIZE)
 
 /* Use the second 64k of external flash for codeprop. */
 #define EEPROMFS_ADDR_CODEPROP  (1 * XMEM_ERASE_UNIT_SIZE)
@@ -143,72 +129,6 @@ for SFD timestamping */
 
 #define SPI_FLASH_HOLD()                ( P4OUT &= ~BV(FLASH_HOLD) )
 #define SPI_FLASH_UNHOLD()              ( P4OUT |=  BV(FLASH_HOLD) )
-
-/*
- * SPI bus - CC2420 pin configuration.
- */
-
-#define CC2420_CONF_SYMBOL_LOOP_COUNT 800
-
-/* P1.0 - Input: FIFOP from CC2420 */
-#define CC2420_FIFOP_PORT(type)   P1##type
-#define CC2420_FIFOP_PIN          0
-/* P1.3 - Input: FIFO from CC2420 */
-#define CC2420_FIFO_PORT(type)     P1##type
-#define CC2420_FIFO_PIN            3
-/* P1.4 - Input: CCA from CC2420 */
-#define CC2420_CCA_PORT(type)      P1##type
-#define CC2420_CCA_PIN             4
-/* P4.1 - Input:  SFD from CC2420 */
-#define CC2420_SFD_PORT(type)      P4##type
-#define CC2420_SFD_PIN             1
-/* P4.2 - Output: SPI Chip Select (CS_N) */
-#define CC2420_CSN_PORT(type)      P4##type
-#define CC2420_CSN_PIN             2
-/* P4.5 - Output: VREG_EN to CC2420 */
-#define CC2420_VREG_PORT(type)     P4##type
-#define CC2420_VREG_PIN            5
-/* P4.6 - Output: RESET_N to CC2420 */
-#define CC2420_RESET_PORT(type)    P4##type
-#define CC2420_RESET_PIN           6
-
-#define CC2420_IRQ_VECTOR PORT1_VECTOR
-
-/* Pin status. */
-#define CC2420_FIFOP_IS_1 (!!(CC2420_FIFOP_PORT(IN) & BV(CC2420_FIFOP_PIN)))
-#define CC2420_FIFO_IS_1  (!!(CC2420_FIFO_PORT(IN) & BV(CC2420_FIFO_PIN)))
-#define CC2420_CCA_IS_1   (!!(CC2420_CCA_PORT(IN) & BV(CC2420_CCA_PIN)))
-#define CC2420_SFD_IS_1   (!!(CC2420_SFD_PORT(IN) & BV(CC2420_SFD_PIN)))
-
-/* The CC2420 reset pin. */
-#define SET_RESET_INACTIVE()   (CC2420_RESET_PORT(OUT) |=  BV(CC2420_RESET_PIN))
-#define SET_RESET_ACTIVE()     (CC2420_RESET_PORT(OUT) &= ~BV(CC2420_RESET_PIN))
-
-/* CC2420 voltage regulator enable pin. */
-#define SET_VREG_ACTIVE()       (CC2420_VREG_PORT(OUT) |=  BV(CC2420_VREG_PIN))
-#define SET_VREG_INACTIVE()     (CC2420_VREG_PORT(OUT) &= ~BV(CC2420_VREG_PIN))
-
-/* CC2420 rising edge trigger for external interrupt 0 (FIFOP). */
-#define CC2420_FIFOP_INT_INIT() do {                  \
-    CC2420_FIFOP_PORT(IES) &= ~BV(CC2420_FIFOP_PIN);  \
-    CC2420_CLEAR_FIFOP_INT();                         \
-  } while(0)
-
-/* FIFOP on external interrupt 0. */
-#define CC2420_ENABLE_FIFOP_INT()  do {CC2420_FIFOP_PORT(IE) |= BV(CC2420_FIFOP_PIN);} while(0)
-#define CC2420_DISABLE_FIFOP_INT() do {CC2420_FIFOP_PORT(IE) &= ~BV(CC2420_FIFOP_PIN);} while(0)
-#define CC2420_CLEAR_FIFOP_INT()   do {CC2420_FIFOP_PORT(IFG) &= ~BV(CC2420_FIFOP_PIN);} while(0)
-
-/*
- * Enables/disables CC2420 access to the SPI bus (not the bus).
- * (Chip Select)
- */
-
- /* ENABLE CSn (active low) */
-#define CC2420_SPI_ENABLE()     (CC2420_CSN_PORT(OUT) &= ~BV(CC2420_CSN_PIN))
- /* DISABLE CSn (active low) */
-#define CC2420_SPI_DISABLE()    (CC2420_CSN_PORT(OUT) |=  BV(CC2420_CSN_PIN))
-#define CC2420_SPI_IS_ENABLED() ((CC2420_CSN_PORT(OUT) & BV(CC2420_CSN_PIN)) != BV(CC2420_CSN_PIN))
 
 /* Platform-specific define for the end of the stack region */
 #define STACK_CONF_ORIGIN     ((void *)0x3900)

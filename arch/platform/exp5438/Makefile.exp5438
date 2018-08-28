@@ -1,43 +1,11 @@
-# $Id: Makefile.z1,v 1.4 2010/11/07 08:40:24 enricmcalvo Exp $
-# msp430flasher -n msp430x5437 -w "Firmware.txt" -v -z [VCC]
+MODULES += arch/dev/cc2420
 
-ifndef CONTIKI
-  $(error CONTIKI not defined! You must specify where CONTIKI resides!)
-endif
-
-MODULES += os/net os/net/mac os/net/mac/framer arch/dev/cc2420
-
-ifdef IAR
-CFLAGS+=-e --vla -Ohz --multiplier=32 --multiplier_location=4C0 --hw_workaround=CPU40 --core=430X  --data_model small --double=32 -D__MSP430F5438A__=1
-#CFLAGS+=--no_cse --no_unroll --no_inline --no_code_motion --no_tbaa --debug -D__MSP430F5438A__ -e --double=32 --dlib_config 'C:\Program Files (x86)\IAR Systems\Embedded Workbench 6.0 Evaluation\430\LIB\DLIB\dl430xsfn.h' --core=430X --data_model=small -Ol --multiplier=32 --multiplier_location=4C0 --hw_workaround=CPU40
-endif
-
-ARCH=msp430.c leds.c watchdog.c platform.c \
-     spix.c cc2420.c cc2420-arch.c \
-     rtimer-arch.c node-id.c leds-arch.c uart1x.c lcd.c \
+ARCH=spi-legacy.c sensors.c \
+     cc2420.c cc2420-arch.c cc2420-arch-sfd.c \
+     uip-ipchksum.c \
+     uart1.c slip_uart1.c uart1-putchar.c platform.c \
+     rtimer-arch.c uart1x.c lcd.c \
      hal_lcd.c hal_lcd_fonts.c duty-cycle-scroller.c cfs-ram.c
-
-ifeq ($(WITH_SLIP),1)
-ARCH += slip_uart0.c
-else
-ARCH += uart1-putchar.c
-endif
-
-ifdef NODEID
-CFLAGS+=-DNODEID=$(NODEID)
-
-ifdef BURN_NODEID
-CFLAGS+=-DBURN_NODEID
-endif # BURN_NODEID
-endif # NODEID
-
-help:
-	@echo A few useful make commands:
-	@echo make help - shows this help
-	@echo make TARGET=exp5438 savetarget - stores selection of target to avoid using TARGET= on every make invokation
-	@echo make program.upload - compiles and uploads program to connected board
-	@echo make program.upload IAR=1 - uses the IAR compiler instead of mspgcc
-	@echo make program.upload NODEID=x - uploads with node_id set to x
 
 CONTIKI_TARGET_DIRS = . dev apps net
 ifndef CONTIKI_TARGET_MAIN
@@ -46,29 +14,141 @@ endif
 
 CONTIKI_TARGET_SOURCEFILES += $(ARCH) $(UIPDRIVERS)
 
-ifdef IAR
-MCU=msp430f5438a
-else
 MCU=msp430f5438
-endif
 
 # Platform has a MSP430X MCU with 20-bit support
 CPU_HAS_MSP430X=1
-TARGET_MEMORY_MODEL=large
 
 include $(CONTIKI)/arch/cpu/msp430/Makefile.msp430
 
+NUMPAR=20
 
-ifdef IAR
-LDFLAGSNO += -xm "$(IAR_PATH)/lib/dlib/dl430xsfn.r43" -f "$(IAR_PATH)/config/lnk430f5437.xcl"
-LDFLAGS += $(LDFLAGSNO) -Felf -yn
+# Check if we are running under Windows
+ifeq ($(HOST_OS),Windows)
+  USBDEVPREFIX=/dev/com
+  SERIALDUMP = $(CONTIKI)/tools/sky/serialdump-windows
+  MOTELIST = $(CONTIKI)/tools/sky/motelist-windows
+  TMOTE_BSL_FILE = tmote-bsl
+  TMOTE_BSL=$(if $(wildcard $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE).exe),1,0)
+  ifeq ($(TMOTE_BSL), 1)
+    NUMPAR = 1
+    BSL =  $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE)
+    MOTES = $(shell $(MOTELIST) | grep COM | \
+       cut -f 4 -d \  )
+  else
+    BSL = $(CONTIKI)/tools/sky/msp430-bsl-windows --telosb
+    BSL_FILETYPE = -I
+    MOTES = $(shell $(MOTELIST) | grep COM | \
+       cut -f 4 -d \  | \
+       perl -ne 'print $$1 - 1 . " " if(/COM(\d+)/);')
+  endif
+  CMOTES = $(shell $(MOTELIST) | grep COM | \
+     cut -f 4 -d \  | \
+     perl -ne 'print $$1 . " " if(/COM(\d+)/);')
+else
+ifeq ($(HOST_OS),Darwin)
+  ifndef MOTELIST
+    USBDEVPREFIX=
+    MOTELIST = $(CONTIKI)/tools/sky/motelist-macos
+    TMOTE_BSL_FILE = tmote-bsl-linux
+    TMOTE_BSL=$(if $(wildcard $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE)),1,0)
+    ifeq ($(TMOTE_BSL), 1)
+      PATH := $(PATH):$(CONTIKI)/tools/sky
+      BSL =  $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE)
+      NUMPAR = 1
+    else
+      BSL = $(CONTIKI)/tools/sky/msp430-bsl-linux --telosb
+      BSL_FILETYPE = -I
+    endif
+    MOTES = $(shell $(MOTELIST) 2>&- | grep usbserial | \
+       cut -f 4 -d \  | \
+       perl -ne 'print $$1 . " " if(m-(/dev/[\w+\.\-]+)-);')
+    CMOTES=$(MOTES)
+  endif
+else
+  # Else we assume Linux
+  ifndef MOTELIST
+    USBDEVPREFIX=
+    MOTELIST = $(CONTIKI)/tools/sky/motelist-linux
+    TMOTE_BSL_FILE = tmote-bsl-linux
+    TMOTE_BSL=$(if $(wildcard $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE)),1,0)
+    ifeq ($(TMOTE_BSL), 1)
+      PATH := $(PATH):$(CONTIKI)/tools/sky
+      BSL =  $(CONTIKI)/tools/sky/$(TMOTE_BSL_FILE)
+      NUMPAR = 1
+    else
+      BSL = $(CONTIKI)/tools/sky/msp430-bsl-linux --telosb
+      BSL_FILETYPE = -I
+    endif
+    ifdef MOTEIDS
+		  MOTES = $(foreach MOTEID, $(MOTEIDS), $(shell $(MOTELIST)  2>&- | grep $(MOTEID) | \
+          cut -f 4 -d \  | \
+          perl -ne 'print $$1 . " " if(m-(/dev/[\w+\.\-]+)-);'))
+    else
+      MOTES = $(shell $(MOTELIST) 2>&- | grep USB | \
+         cut -f 4 -d \  | \
+         perl -ne 'print $$1 . " " if(m-(/dev/[\w+\.\-]+)-);')
+    endif
+    CMOTES=$(MOTES)
+  endif
+endif
 endif
 
-%.hex: %.ihex
-	mv $< $@
+motelist: exp5438-motelist
 
-%.upload: %.hex
-	msp430flasher -n msp430x5438a -e ERASE_MAIN -w $< -v -z [VCC]
+exp5438-motelist:
+	$(MOTELIST)
+exp5438-motes:
+	@echo $(MOTES)
 
-%.upload-clean: %.hex
-	msp430flasher -n msp430x5438a -w $< -v -z [VCC]
+ifdef MOTE
+%.upload: %.ihex
+	$(MAKE) IHEXFILE=$< exp5438-u.$(subst /,_,$(word $(MOTE), $(MOTES)))
+else # MOTE
+%.upload: %.ihex
+	$(MAKE) IHEXFILE=$< exp5438-reset exp5438-upload
+endif # MOTE
+
+upload-ihex:
+ifdef FILE
+	@echo Uploading $(FILE)
+ifdef MOTE
+	$(MAKE) IHEXFILE=$(FILE) exp5438-u.$(subst /,_,$(word $(MOTE), $(MOTES)))
+else # MOTE
+	$(MAKE) exp5438-reset exp5438-upload
+endif # MOTE
+else
+	@echo Example: $(MAKE) upload-ihex FILE=myfile.ihex
+endif
+
+exp5438-upload: exp5438-reset
+	$(MAKE) -j $(NUMPAR) exp5438-upload-sequence
+
+exp5438-upload-sequence:	$(foreach PORT, $(MOTES), exp5438-u.$(subst /,_,$(PORT)))
+	@echo Done
+
+exp5438-reset:
+	$(MAKE) -k -j $(NUMPAR) exp5438-reset-sequence
+
+exp5438-reset-sequence:	$(foreach PORT, $(MOTES), exp5438-r.$(subst /,_,$(PORT)))
+	@echo Done
+
+exp5438-u.%:
+	@echo +++++ Erasing $(subst _,/,$*); \
+	$(BSL) -c $(subst _,/,$*) -e && sleep 2 ; \
+	echo +++++ Programming $(subst _,/,$*) ; \
+	$(BSL) -c $(subst _,/,$*) $(BSL_FILETYPE) -p $(IHEXFILE) && sleep 2 ; \
+	echo +++++ Resetting $(subst _,/,$*) ; \
+	$(BSL) -c $(subst _,/,$*) -r
+
+exp5438-r.%:
+	$(BSL) -c $(subst _,/,$*) -r
+
+$(CONTIKI)/tools/tunslip:
+	(cd $(CONTIKI)/tools; $(MAKE) tunslip)
+
+ifdef MOTE
+  PORT = $(USBDEVPREFIX)$(word $(MOTE), $(CMOTES))
+else
+  PORT = $(USBDEVPREFIX)$(firstword $(CMOTES))
+endif
