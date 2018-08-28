@@ -37,6 +37,7 @@ COOJA.testlog
 *.firmware
 *.srf06-cc26xx
 *.zoul
+*.exp5438
 
 # do not ignore platform makefiles
 !Makefile.cc2538dk
@@ -48,6 +49,7 @@ COOJA.testlog
 !Makefile.sky
 !Makefile.srf06-cc26xx
 !Makefile.zoul
+!Makefile.exp5438
 
 # other nRF52 build artifacts
 *.jlink
