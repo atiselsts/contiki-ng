@@ -88,12 +88,15 @@ ifeq ($(BOARD_SUPPORTS_BSL),1)
 ifeq ($(wildcard $(BSL)), )
 	@echo "ERROR: Could not find the cc2538-bsl script. Did you run 'git submodule update --init' ?"
 else
+	$(PYTHON) $(KEYGEN) $< $(A)
 	$(PYTHON) $(BSL) $(BSL_FLAGS) $<
 endif
 else
 %.upload:
 	@echo "This board cannot be programmed through the ROM bootloader and therefore does not support the .upload target."
 endif
+
+KEYGEN = $(CONTIKI)/tools/cc26xx/key.py
 
 ### For the login etc targets
 BAUDRATE = 115200
