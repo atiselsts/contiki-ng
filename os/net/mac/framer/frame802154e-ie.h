@@ -85,6 +85,8 @@ struct ieee802154_ies {
   /* We include and parse only the sequence len and list and omit unused fields */
   uint16_t ie_hopping_sequence_len;
   uint8_t ie_hopping_sequence_list[TSCH_HOPPING_SEQUENCE_MAX_LEN];
+  /* Instant Header IE: number of active_slotframes */
+  int8_t num_active_slotframes;
 #if TSCH_WITH_SIXTOP
   /* Payload Sixtop IE */
   const uint8_t *sixtop_ie_content_ptr;
@@ -95,6 +97,9 @@ struct ieee802154_ies {
 /** Insert various Information Elements **/
 /* Header IE. ACK/NACK time correction. Used in enhanced ACKs */
 int frame80215e_create_ie_header_ack_nack_time_correction(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+/* Instant Header IE: number of active_slotframes. -1 if not set */
+int frame80215e_create_ie_header_ack_num_active_slotframes(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 /* Header IE. List termination 1 (Signals the end of the Header IEs when
  * followed by payload IEs) */

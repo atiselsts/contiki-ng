@@ -306,6 +306,8 @@ keepalive_send(void *ptr)
 void
 tsch_schedule_keepalive(void)
 {
+  return; /* Not sending any keepalives in the Instant tests */
+
   /* Pick a delay in the range [tsch_current_ka_timeout*0.9, tsch_current_ka_timeout[ */
   if(!tsch_is_coordinator && tsch_is_associated && tsch_current_ka_timeout > 0) {
     unsigned long delay = (tsch_current_ka_timeout - tsch_current_ka_timeout / 10)
@@ -318,6 +320,8 @@ tsch_schedule_keepalive(void)
 void
 tsch_schedule_keepalive_immediately(void)
 {
+  return; /* Not sending any keepalives in the Instant tests */
+
   /* Pick a delay in the range [tsch_current_ka_timeout*0.9, tsch_current_ka_timeout[ */
   if(!tsch_is_coordinator && tsch_is_associated) {
     ctimer_set(&keepalive_timer, 0, keepalive_send, NULL);
@@ -450,7 +454,9 @@ tsch_rx_process_pending()
       /* Pass to upper layers */
       packet_input();
     } else if(is_eb) {
-      eb_input(current_input);
+      if(0) { /* Disable EB processing in the Instant tests */
+        eb_input(current_input);
+      }
     }
 
     /* Remove input from ringbuf */
@@ -952,7 +958,7 @@ tsch_init(void)
   queuebuf_init();
   tsch_reset();
   tsch_queue_init();
-  tsch_schedule_init();
+  /* tsch_schedule_init(); */ /* Does not exist for Instant */
   tsch_log_init();
   ringbufindex_init(&input_ringbuf, TSCH_MAX_INCOMING_PACKETS);
   ringbufindex_init(&dequeued_ringbuf, TSCH_DEQUEUED_ARRAY_SIZE);
@@ -1078,8 +1084,12 @@ packet_input(void)
   } else {
     int duplicate = 0;
 
+    if(packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO) == 1) {
+      /* this means: Instant unicast packet. Ignore (since it's a fake test packet). */
+      duplicate = 1;
+
     /* Seqno of 0xffff means no seqno */
-    if(packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO) != 0xffff) {
+    } else if(packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO) != 0xffff) {
       /* Check for duplicates */
       duplicate = mac_sequence_is_duplicate();
       if(duplicate) {
@@ -1112,7 +1122,7 @@ turn_on(void)
     /* Process tx/rx callback and log messages whenever polled */
     process_start(&tsch_pending_events_process, NULL);
     /* periodically send TSCH EBs */
-    process_start(&tsch_send_eb_process, NULL);
+    /* process_start(&tsch_send_eb_process, NULL); */ /* Disabled for Instant */
     /* try to associate to a network or start one if setup as coordinator */
     process_start(&tsch_process, NULL);
     LOG_INFO("starting as %s\n", tsch_is_coordinator ? "coordinator": "node");

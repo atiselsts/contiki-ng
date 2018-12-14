@@ -60,7 +60,8 @@
  */
 int tsch_packet_create_eack(uint8_t *buf, uint16_t buf_size,
                             const linkaddr_t *dest_addr, uint8_t seqno,
-                            int16_t drift, int nack);
+                            int16_t drift, int nack, int include_source_address,
+                            int16_t active_slotframes, uint8_t set_active_slotframes);
 /**
  * \brief Parse enhanced ACK packet
  * \param buf The buffer where to parse the EACK from
@@ -71,7 +72,7 @@ int tsch_packet_create_eack(uint8_t *buf, uint16_t buf_size,
  * \param hdr_len A pointer where to store the length of the parsed header
  * \return 1 if the EACK is correct and acknowledges the specified frame, 0 otherwise
  */
-int tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
+int tsch_packet_parse_eack(const uint8_t *buf, int buf_size, linkaddr_t *src,
     uint8_t seqno, frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len);
 /**
  * \brief Create an EB packet directly in packetbuf

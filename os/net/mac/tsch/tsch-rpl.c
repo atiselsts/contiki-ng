@@ -55,6 +55,8 @@
 #include "net/routing/rpl-classic/rpl-private.h"
 #endif
 
+#include "instant.h"
+
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH RPL"
@@ -132,8 +134,10 @@ tsch_rpl_callback_parent_switch(rpl_parent_t *old, rpl_parent_t *new)
    * current time source if there is no preferred aarent) */
   if(tsch_is_associated == 1 && new != NULL) {
     tsch_queue_update_time_source(
-      (const linkaddr_t *)uip_ds6_nbr_lladdr_from_ipaddr(
-        rpl_parent_get_ipaddr(new)));
+        (const linkaddr_t *)uip_ds6_nbr_lladdr_from_ipaddr(rpl_parent_get_ipaddr(new)));
+  } else {
+    /* reset */
+    instant_update_selected_node_from_routing(NULL);
   }
 }
 #endif /* UIP_CONF_IPV6_RPL */

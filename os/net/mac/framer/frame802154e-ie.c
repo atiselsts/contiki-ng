@@ -54,6 +54,8 @@ enum ieee802154e_header_ie_id {
   HEADER_IE_ACK_NACK_TIME_CORRECTION,
   HEADER_IE_GACK,
   HEADER_IE_LOW_LATENCY_NETWORK_INFO,
+  /* Instant */
+  HEADER_IE_NUM_ACTIVE_SLOTFRAMES,
   HEADER_IE_LIST_TERMINATION_1 = 0x7e,
   HEADER_IE_LIST_TERMINATION_2 = 0x7f,
 };
@@ -155,6 +157,22 @@ frame80215e_create_ie_header_ack_nack_time_correction(uint8_t *buf, int len,
     return -1;
   }
 }
+
+/* Instant Header IE. Number of active slotframes. Used in enhanced ACKs */
+int
+frame80215e_create_ie_header_ack_num_active_slotframes(uint8_t *buf, int len,
+    struct ieee802154_ies *ies)
+{
+  int ie_len = 1;
+  if(len >= 2 + ie_len && ies != NULL) {
+    *(buf+2) = ies->num_active_slotframes;
+    create_header_ie_descriptor(buf, HEADER_IE_NUM_ACTIVE_SLOTFRAMES, ie_len);
+    return 2 + ie_len;
+  } else {
+    return -1;
+  }
+}
+
 
 /* Header IE. List termination 1 (Signals the end of the Header IEs when
  * followed by payload IEs) */
@@ -346,6 +364,14 @@ frame802154e_parse_header_ie(const uint8_t *buf, int len,
     uint8_t element_id, struct ieee802154_ies *ies)
 {
   switch(element_id) {
+    case HEADER_IE_NUM_ACTIVE_SLOTFRAMES:
+      if(len == 1) {
+        if(ies != NULL) {
+          ies->num_active_slotframes = *buf;
+        }
+        return len;
+      }
+      break;
     case HEADER_IE_ACK_NACK_TIME_CORRECTION:
       if(len == 2) {
         if(ies != NULL) {

@@ -59,7 +59,6 @@ frequency hopping for enhanced reliability.
 #include "net/mac/tsch/tsch-log.h"
 #include "net/mac/tsch/tsch-packet.h"
 #include "net/mac/tsch/tsch-security.h"
-#include "net/mac/tsch/tsch-schedule.h"
 #include "net/mac/tsch/tsch-stats.h"
 #if UIP_CONF_IPV6_RPL
 #include "net/mac/tsch/tsch-rpl.h"
@@ -169,6 +168,11 @@ extern int32_t min_drift_seen;
 extern int32_t max_drift_seen;
 /* The TSCH standard 10ms timeslot timing */
 extern const uint16_t tsch_timeslot_timing_us_10000[tsch_ts_elements_count];
+
+/* For Instant */
+extern struct tsch_packet *current_packet;
+extern struct tsch_neighbor *current_neighbor;
+extern int tsch_burst_link_scheduled;
 
 /* TSCH processes */
 PROCESS_NAME(tsch_process);

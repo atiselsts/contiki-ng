@@ -53,6 +53,7 @@
 #include "lib/random.h"
 #include "net/queuebuf.h"
 #include "net/mac/tsch/tsch.h"
+#include "net/mac/tsch/instant.h"
 #include <string.h>
 
 /* Log configuration */
@@ -139,6 +140,10 @@ tsch_queue_get_time_source(void)
 int
 tsch_queue_update_time_source(const linkaddr_t *new_addr)
 {
+#if INSTANT_EMULATE_ORCHESTRA
+  instant_update_selected_node_from_routing(new_addr);
+#endif /* INSTANT_EMULATE_ORCHESTRA */
+  
   if(!tsch_is_locked()) {
     if(!tsch_is_coordinator) {
       struct tsch_neighbor *old_time_src = tsch_queue_get_time_source();
@@ -323,7 +328,7 @@ tsch_queue_packet_sent(struct tsch_neighbor *n, struct tsch_packet *p,
                       struct tsch_link *link, uint8_t mac_tx_status)
 {
   int in_queue = 1;
-  int is_shared_link = link->link_options & LINK_OPTION_SHARED;
+  int is_shared_link = link && (link->link_options & LINK_OPTION_SHARED);
   int is_unicast = !n->is_broadcast;
 
   if(mac_tx_status == MAC_TX_OK) {

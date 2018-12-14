@@ -81,6 +81,9 @@
 #define LOG_MODULE "CC26xx/CC13xx"
 #define LOG_LEVEL LOG_LEVEL_MAIN
 /*---------------------------------------------------------------------------*/
+/* Structure with the security key and address */
+struct key_addr_info_s key_addr_info __attribute__ ((section (".key")));
+/*---------------------------------------------------------------------------*/
 /** \brief Board specific iniatialisation */
 void board_init(void);
 /*---------------------------------------------------------------------------*/

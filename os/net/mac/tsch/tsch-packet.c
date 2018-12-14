@@ -92,12 +92,14 @@ tsch_packet_eackbuf_attr(uint8_t type)
 int
 tsch_packet_create_eack(uint8_t *buf, uint16_t buf_len,
                         const linkaddr_t *dest_addr, uint8_t seqno,
-                        int16_t drift, int nack)
+                        int16_t drift, int nack, int include_source_address,
+                        int16_t active_slotframes, uint8_t set_active_slotframes)
 {
   frame802154_t params;
   struct ieee802154_ies ies;
   int hdr_len;
   int ack_len;
+  int ie_len;
 
   if(buf == NULL) {
     return -1;
@@ -117,12 +119,13 @@ tsch_packet_create_eack(uint8_t *buf, uint16_t buf_len,
   }
 #endif
 
-  tsch_packet_eackbuf_set_attr(PACKETBUF_ATTR_MAC_NO_SRC_ADDR, 1);
-#if TSCH_PACKET_EACK_WITH_SRC_ADDR
-  tsch_packet_eackbuf_set_attr(PACKETBUF_ATTR_MAC_NO_SRC_ADDR, 0);
-  linkaddr_copy((linkaddr_t *)&params.src_addr, &linkaddr_node_addr);
-#endif
-
+  if(include_source_address) {
+    tsch_packet_eackbuf_set_attr(PACKETBUF_ATTR_MAC_NO_SRC_ADDR, 0);
+    linkaddr_copy((linkaddr_t *)&params.src_addr, &linkaddr_node_addr);
+  } else {
+    tsch_packet_eackbuf_set_attr(PACKETBUF_ATTR_MAC_NO_SRC_ADDR, 1);
+  }
+    
 #if LLSEC802154_ENABLED
   if(tsch_is_pan_secured) {
     tsch_packet_eackbuf_set_attr(PACKETBUF_ATTR_SECURITY_LEVEL,
@@ -144,13 +147,25 @@ tsch_packet_create_eack(uint8_t *buf, uint16_t buf_len,
   ies.ie_time_correction = drift;
   ies.ie_is_nack = nack;
 
-  ack_len =
-    frame80215e_create_ie_header_ack_nack_time_correction(buf + hdr_len,
-                                                          buf_len - hdr_len, &ies);
-  if(ack_len < 0) {
+  ack_len = hdr_len;
+  ie_len =
+    frame80215e_create_ie_header_ack_nack_time_correction(buf + ack_len,
+                                                          buf_len - ack_len, &ies);
+  if(ie_len < 0) {
     return -1;
   }
-  ack_len += hdr_len;
+  ack_len += ie_len;
+
+  /* Instant: setup number of active slotframes */
+  if(set_active_slotframes) {
+    ies.num_active_slotframes = active_slotframes;
+    ie_len = frame80215e_create_ie_header_ack_num_active_slotframes(buf + ack_len,
+        buf_len - ack_len, &ies);
+    if(ie_len < 0) {
+      return -1;
+    }
+    ack_len += ie_len;
+  }
 
   frame802154_create(&params, buf);
 
@@ -159,7 +174,7 @@ tsch_packet_create_eack(uint8_t *buf, uint16_t buf_len,
 /*---------------------------------------------------------------------------*/
 /* Parse enhanced ACK packet, extract drift and nack */
 int
-tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
+tsch_packet_parse_eack(const uint8_t *buf, int buf_size, linkaddr_t *src,
                        uint8_t seqno, frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len)
 {
   uint8_t curr_len = 0;
@@ -178,18 +193,22 @@ tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
   }
   curr_len += ret;
 
+#if 0 /* Ignore this check for now: too tricky to get right */
   /* Check seqno */
   if(seqno != frame->seq) {
     return 0;
   }
+#endif
 
+#if 0 /* disabled for Instant */
   /* Check destination PAN ID */
   if(frame802154_check_dest_panid(frame) == 0) {
     return 0;
   }
+#endif
 
   /* Check destination address (if any) */
-  if(frame802154_extract_linkaddr(frame, NULL, &dest) == 0 ||
+  if(frame802154_extract_linkaddr(frame, src, &dest) == 0 ||
      (!linkaddr_cmp(&dest, &linkaddr_node_addr)
       && !linkaddr_cmp(&dest, &linkaddr_null))) {
     return 0;
@@ -208,6 +227,7 @@ tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
       return 0;
     }
 #endif /* LLSEC802154_ENABLED */
+
     /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
     if((ret = frame802154e_parse_information_elements(buf + curr_len, buf_size - curr_len - mic_len, ies)) == -1) {
       return 0;
@@ -279,6 +299,8 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
   p = packetbuf_dataptr();
 
+  ies.ie_asn = tsch_current_asn;
+  ies.ie_join_priority = tsch_join_priority;
   ie_len = frame80215e_create_ie_tsch_synchronization(p,
                                                       packetbuf_remaininglen(),
                                                       &ies);

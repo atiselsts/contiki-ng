@@ -437,5 +437,7 @@ by default, useful in case of duplicate seqno */
 #define TSCH_CONF_RX_WAIT 2200
 #endif /* TSCH_CONF_RX_WAIT */
 
+#include "instant.h"
+
 #endif /* __TSCH_CONF_H__ */
 /** @} */

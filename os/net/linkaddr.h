@@ -106,6 +106,17 @@ int linkaddr_cmp(const linkaddr_t *addr1, const linkaddr_t *addr2);
 void linkaddr_set_node_addr(linkaddr_t *addr);
 
 /**
+ * \brief      Get ID of a node in the network from its MAC address.
+ */
+int node_id_from_address(const linkaddr_t *address);
+
+/**
+ * \brief      Get a MAC address of a node in the network from its node ID.
+ */
+const linkaddr_t *address_from_node_id(int node_id);
+
+
+/**
  * \brief      The link-layer address of the node
  *
  *             This variable contains the link-layer address of the
