@@ -1,8 +1,8 @@
-CONTIKI_PROJECT = udp-client udp-server
+CONTIKI_PROJECT = udp-client
 all: $(CONTIKI_PROJECT)
 
 MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
 MAKE_MAC = MAKE_MAC_TSCH
 
-CONTIKI=../..
+CONTIKI=../../..
 include $(CONTIKI)/Makefile.include
