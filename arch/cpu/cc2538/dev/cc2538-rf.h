@@ -60,6 +60,8 @@
 #define CC2538_RF_MIN_PACKET_LEN          4
 #define CC2538_RF_CCA_CLEAR               1
 #define CC2538_RF_CCA_BUSY                0
+
+#define RF_MAX_PAYLOAD_LEN (CC2538_RF_MAX_PACKET_LEN - 2)
 /*---------------------------------------------------------------------------*/
 #ifdef CC2538_RF_CONF_TX_POWER
 #define CC2538_RF_TX_POWER CC2538_RF_CONF_TX_POWER

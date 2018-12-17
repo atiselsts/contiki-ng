@@ -661,6 +661,14 @@ transmit(unsigned short transmit_len)
 
   LOG_INFO("Transmit\n");
 
+  if(transmit_len > RF_MAX_PAYLOAD_LEN) {
+    return RADIO_TX_ERR;
+  }
+
+  if(transmit_len == 0) {
+    return RADIO_TX_ERR;
+  }
+
   if(!(rf_flags & RX_ACTIVE)) {
     t0 = RTIMER_NOW();
     on();

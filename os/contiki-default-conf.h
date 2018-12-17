@@ -211,4 +211,8 @@
 #define SICSLOWPAN_CONF_COMPRESSION SICSLOWPAN_COMPRESSION_IPHC
 #endif /* SICSLOWPAN_CONF_COMPRESSION */
 
+/* Select the packet size to be dependent on the minimum of radio capabilities
+   and legacy SICSLOWPAN config. */
+#define NETSTACK_RADIO_MAX_PAYLOAD_LEN MIN(SICSLOWPAN_CONF_MAC_MAX_PAYLOAD, RF_MAX_PAYLOAD_LEN)
+
 #endif /* CONTIKI_DEFAULT_CONF_H */

@@ -100,7 +100,8 @@
 #define CSMA_CONF_SEND_SOFT_ACK              0
 #endif /* CC13XX_CONF_PROP_MODE */
 
-#define NETSTACK_RADIO_MAX_PAYLOAD_LEN        125
+/* FIXME: this is not true for the prop mode */
+#define RF_MAX_PAYLOAD_LEN                   125
 
 /** @} */
 /*---------------------------------------------------------------------------*/

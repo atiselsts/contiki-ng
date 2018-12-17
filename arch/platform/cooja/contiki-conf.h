@@ -143,7 +143,7 @@ typedef unsigned long clock_time_t;
 
 #define CFS_CONF_OFFSET_TYPE	long
 
-#define NETSTACK_RADIO_MAX_PAYLOAD_LEN 125
+#define RF_MAX_PAYLOAD_LEN 125
 
 #define PLATFORM_CONF_SUPPORTS_STACK_CHECK  0
 

@@ -143,6 +143,8 @@
 #define RF_CONF_RX_BUF_SIZE          144
 #endif
 
+#define RF_CONF_MAX_PAYLOAD_LEN      125
+
 /* Enable/disable BLE beacon. */
 #ifndef RF_CONF_BLE_BEACON_ENABLE
 #define RF_CONF_BLE_BEACON_ENABLE    0

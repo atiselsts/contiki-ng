@@ -1,5 +1,5 @@
+#include "contiki.h"
 #include "dev/nullradio.h"
-
 
 /*---------------------------------------------------------------------------*/
 static int
@@ -17,6 +17,12 @@ prepare(const void *payload, unsigned short payload_len)
 static int
 transmit(unsigned short transmit_len)
 {
+  if(transmit_len > RF_MAX_PAYLOAD_LEN) {
+    return RADIO_TX_ERR;
+  }
+  if(transmit_len == 0) {
+    return RADIO_TX_ERR;
+  }
   return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/

@@ -198,7 +198,7 @@ static uint8_t cmd_ieee_rx_buf[RF_CMD_BUFFER_SIZE] CC_ALIGN(4);
 #define RX_BUF_DATA_OFFSET (RX_BUF_LENGTH_OFFSET + 1)
 
 #define RX_BUF_SIZE (RX_BUF_DATA_OFFSET \
-      + NETSTACK_RADIO_MAX_PAYLOAD_LEN  \
+      + RF_MAX_PAYLOAD_LEN              \
       + RX_BUF_METADATA_SIZE)
 
 /* Four receive buffers entries with room for 1 IEEE802.15.4 frame in each */
@@ -783,6 +783,16 @@ transmit(unsigned short transmit_len)
   uint8_t tx_active = 0;
   rtimer_clock_t t0;
   volatile rfc_CMD_IEEE_TX_t cmd;
+
+  if(transmit_len > RF_MAX_PAYLOAD_LEN) {
+    PRINTF("transmit: too big\n");
+    return RADIO_TX_ERR;
+  }
+
+  if(transmit_len == 0) {
+    PRINTF("transmit: no payload\n");
+    return RADIO_TX_ERR;
+  }
 
   if(!rf_is_on()) {
     was_off = 1;

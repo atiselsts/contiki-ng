@@ -215,7 +215,7 @@ static const prop_mode_tx_power_config_t *tx_power_current = &TX_POWER_DRIVER[1]
 #define ALIGN_TO_4(size)	(((size) + 3) & ~3)
 
 #define RX_BUF_SIZE ALIGN_TO_4(RX_BUF_DATA_OFFSET          \
-      + NETSTACK_RADIO_MAX_PAYLOAD_LEN   \
+      + RF_MAX_PAYLOAD_LEN                                 \
       + RX_BUF_METADATA_SIZE)
 
 /*
@@ -679,12 +679,9 @@ transmit(unsigned short transmit_len)
   /* Length in .15.4g PHY HDR. Includes the CRC but not the HDR itself */
   uint16_t total_length;
 
-  if(!rf_is_on()) {
-    was_off = 1;
-    if(on() != RF_CORE_CMD_OK) {
-      PRINTF("transmit: on() failed\n");
-      return RADIO_TX_ERR;
-    }
+  if(transmit_len == 0) {
+    PRINTF("transmit: no payload\n");
+    return RADIO_TX_ERR;
   }
 
   /*
@@ -696,6 +693,20 @@ transmit(unsigned short transmit_len)
    * LSBs (PHR[15:8] and tx_buf[1] will have PHR[7:0]
    */
   total_length = transmit_len + CRC_LEN;
+
+  /* FIXME: this should take into account the other things? */
+  if(total_length > DOT_4G_MAX_FRAME_LEN) {
+    PRINTF("transmit: too big\n");
+    return RADIO_TX_ERR;
+  }
+
+  if(!rf_is_on()) {
+    was_off = 1;
+    if(on() != RF_CORE_CMD_OK) {
+      PRINTF("transmit: on() failed\n");
+      return RADIO_TX_ERR;
+    }
+  }
 
   tx_buf[0] = total_length & 0xFF;
   tx_buf[1] = (total_length >> 8) + DOT_4G_PHR_DW_BIT + DOT_4G_PHR_CRC_BIT;
