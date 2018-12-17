@@ -35,8 +35,11 @@ ENTRY(ResetISR)
 
 MEMORY
 {
-    /* Flash Size 128 KB minus the CCA area below (88 bytes) */
-    FLASH (RX) : ORIGIN = 0x00000000, LENGTH = 0x0001FFA8
+    /* Flash Size 128 KB minus the CCA area below (88 bytes) and minus the key */
+    FLASH (RX) : ORIGIN = 0x00000000, LENGTH = 0x0001FF88
+
+    /* Area for the network security key and MAC addresses */
+    FLASH_KEY (RX) : ORIGIN = 0x0001FF88, LENGTH = 0x00000020
 
     /*
      * Customer Configuration Area and Bootloader Backdoor configuration
@@ -98,6 +101,11 @@ SECTIONS
     _stack_origin = ORIGIN(SRAM) + LENGTH(SRAM);
     _heap = _stack;
     _eheap = _stack_origin;
+
+    .key :
+    {
+        KEEP(*(.key))
+    } > FLASH_KEY
 
     .ccfg :
     {
