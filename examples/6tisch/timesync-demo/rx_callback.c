@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2015, SICS Swedish ICT.
  * Copyright (c) 2018, University of Bristol - http://www.bristol.ac.uk
+ * Copyright (c) 2019, Institute of Electronics and Computer Science (EDI)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,53 +29,37 @@
  * SUCH DAMAGE.
  *
  */
+#include "contiki.h"
+#include "net/ipv6/simple-udp.h"
+#include "net/mac/tsch/tsch.h"
 
-/**
- * \author Simon Duquennoy <simonduq@sics.se>
- *         Atis Elsts <atis.elsts@bristol.ac.uk>
- */
+#include "sys/log.h"
+#define LOG_MODULE "App"
+#define LOG_LEVEL LOG_LEVEL_INFO
 
-#ifndef __PROJECT_CONF_H__
-#define __PROJECT_CONF_H__
+static void
+rx_packet(struct simple_udp_connection *c,
+          const uip_ipaddr_t *sender_addr,
+          uint16_t sender_port,
+          const uip_ipaddr_t *receiver_addr,
+          uint16_t receiver_port,
+          const uint8_t *data,
+          uint16_t datalen)
+{
+  uint64_t local_time_clock_ticks = tsch_get_network_uptime_ticks();
+  uint64_t remote_time_clock_ticks;
 
-/* Set to enable TSCH security */
-#ifndef WITH_SECURITY
-#define WITH_SECURITY 0
-#endif /* WITH_SECURITY */
+  if(datalen >= sizeof(remote_time_clock_ticks)) {
+    memcpy(&remote_time_clock_ticks, data, sizeof(remote_time_clock_ticks));
 
-/* USB serial takes space, free more space elsewhere */
-#define SICSLOWPAN_CONF_FRAG 0
-#define UIP_CONF_BUFFER_SIZE 160
+    LOG_INFO("Received from ");
+    LOG_INFO_6ADDR(sender_addr);
+    LOG_INFO_(", created at %lu, now %lu, latency %lu clock ticks\n",
+              (unsigned long)remote_time_clock_ticks,
+              (unsigned long)local_time_clock_ticks,
+              (unsigned long)(local_time_clock_ticks - remote_time_clock_ticks));
+  }
+}
 
-/*******************************************************/
-/******************* Configure TSCH ********************/
-/*******************************************************/
-
-/* IEEE802.15.4 PANID */
-#define IEEE802154_CONF_PANID 0x81a5
-
-/* 6TiSCH minimal schedule length.
- * Larger values result in less frequent active slots: reduces capacity and saves energy. */
-#define TSCH_SCHEDULE_CONF_DEFAULT_LENGTH 3
-
-#if WITH_SECURITY
-
-/* Enable security */
-#define LLSEC802154_CONF_ENABLED 1
-
-#endif /* WITH_SECURITY */
-
-/*******************************************************/
-/************* Other system configuration **************/
-/*******************************************************/
-
-/* Logging */
-#define LOG_CONF_LEVEL_RPL                         LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_TCPIP                       LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_IPV6                        LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_6LOWPAN                     LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_FRAMER                      LOG_LEVEL_WARN
-#define TSCH_LOG_CONF_PER_SLOT                     0
-
-#endif /* __PROJECT_CONF_H__ */
+/* Export the `rx_callback` symbol */
+simple_udp_callback rx_callback = rx_packet;
