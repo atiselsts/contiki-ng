@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <strformat.h>
 #include <string.h>
+#if 0
 /*---------------------------------------------------------------------------*/
 struct fmt_buffer {
   char *pos;
@@ -81,3 +82,4 @@ vsnprintf(char *str, size_t size, const char *format, va_list ap)
   return res;
 }
 /*---------------------------------------------------------------------------*/
+#endif

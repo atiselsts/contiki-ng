@@ -86,6 +86,56 @@ _sbrk(int incr)
   return (caddr_t)prev_heap_end;
 }
 
+int _kill(int pid, int sig)
+{
+  return -EINVAL;
+}
+
+int _getpid()
+{
+  return -EINVAL;
+}
+
+int _lseek(int file, int ptr, int dir)
+{
+  return -EINVAL;
+}
+
+int _open(const char *name, int flags, ...)
+{
+  return -EINVAL;
+}
+
+int _read(int file, char *ptr, int len)
+{
+    return -EINVAL;
+}
+
+int _write(int file, char *ptr, int len)
+{
+  return -EINVAL;
+}
+
+int _close(int file)
+{
+  return -EINVAL;
+}
+
+int _isatty(int file)
+{
+  return -EINVAL;
+}
+
+void _exit()
+{
+}
+
+struct stat;
+int _fstat(int file, struct stat *st)
+{
+  return -EINVAL;
+}
+
 /**
  * @}
  * @}

@@ -995,7 +995,8 @@ get_object(radio_param_t param, void *dest, size_t size)
 
     const uint8_t *pSrc = (uint8_t *)&(v_cmd_rx.localExtAddr);
     uint8_t *pDest = dest;
-    for(size_t i = 0; i < srcSize; ++i) {
+    size_t i;
+    for(i = 0; i < srcSize; ++i) {
       pDest[i] = pSrc[srcSize - 1 - i];
     }
 
@@ -1035,7 +1036,8 @@ set_object(radio_param_t param, const void *src, size_t size)
 
     const uint8_t *pSrc = (const uint8_t *)src;
     volatile uint8_t *pDest = (uint8_t *)&(v_cmd_rx.localExtAddr);
-    for(size_t i = 0; i < destSize; ++i) {
+    size_t i;
+    for(i = 0; i < destSize; ++i) {
       pDest[i] = pSrc[destSize - 1 - i];
     }
 

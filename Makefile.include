@@ -79,10 +79,11 @@ endif
 
 define oname
 ${patsubst %.c,%.o, \
+${patsubst %.cpp,%.o, \
 ${patsubst %.S,%.o, \
 ${patsubst %.s,%.o, \
 $(1) \
-}}}
+}}}}
 endef
 
 CONTIKI_OBJECTFILES = ${addprefix $(OBJECTDIR)/,${call oname, $(CONTIKI_SOURCEFILES)}}
@@ -233,7 +234,7 @@ endif
 
 MODULEDIRS = $(MODULES_REL) ${addprefix $(CONTIKI)/, $(MODULES)}
 UNIQUEMODULES = $(call uniq,$(MODULEDIRS))
-MODULES_SOURCES = ${foreach d, $(UNIQUEMODULES), ${subst ${d}/,,${wildcard $(d)/*.c}}}
+MODULES_SOURCES = ${foreach d, $(UNIQUEMODULES), ${subst ${d}/,,${wildcard $(d)/*.c*}}}
 CONTIKI_SOURCEFILES += $(MODULES_SOURCES)
 
 # Include module-specific makefiles
@@ -296,6 +297,7 @@ SOURCEDIRS += . $(PROJECTDIRS) $(CONTIKI_TARGET_DIRS_CONCAT) \
               $(CONTIKI_CPU_DIRS_CONCAT) $(MODULEDIRS) $(EXTERNALDIRS)
 
 vpath %.c $(SOURCEDIRS)
+vpath %.cpp $(SOURCEDIRS)
 vpath %.S $(SOURCEDIRS)
 vpath %.s $(SOURCEDIRS)
 
@@ -382,8 +384,14 @@ endif
 ifndef CUSTOM_RULE_C_TO_O
 %.o: %.c
 	$(TRACE_CC)
-	$(Q)$(CC) $(CFLAGS) -c $< -o $@
+	$(Q)$(CC) $(CFLAGS) $(CONLYFLAGS) -c $< -o $@
 endif
+
+#ifndef CUSTOM_RULE_CPP_TO_O
+#%.o: %.cpp
+#	$(TRACE_CC)
+#	$(Q)$(CXX) $(CFLAGS) $(CXXFLAGS) -c $< -o $@
+#endif
 
 ifndef CUSTOM_RULE_C_TO_S
 %.s: %.c
@@ -490,6 +498,8 @@ include $(CONTIKI)/Makefile.gcc
 # a single C source into a binary to force GNU make to consider
 # the match-anything rule below instead.
 %: %.c
+
+%: %.cpp
 
 ifeq ($(PLATFORM_ACTION),skip)
 # Skip this target.
