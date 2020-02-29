@@ -38,6 +38,7 @@
 
 #include "net/packetbuf.h"
 #include "net/netstack.h"
+#include "sys/energest.h"
 
 #include "dev/radio.h"
 #include "dev/cooja-radio.h"
@@ -139,6 +140,7 @@ radio_LQI(void)
 static int
 radio_on(void)
 {
+  ENERGEST_ON(ENERGEST_TYPE_LISTEN);
   simRadioHWOn = 1;
   return 1;
 }
@@ -146,6 +148,7 @@ radio_on(void)
 static int
 radio_off(void)
 {
+  ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
   simRadioHWOn = 0;
   return 1;
 }
@@ -209,6 +212,16 @@ radio_send(const void *payload, unsigned short payload_len)
 {
   int radiostate = simRadioHWOn;
 
+  if(payload_len > COOJA_RADIO_BUFSIZE) {
+    return RADIO_TX_ERR;
+  }
+  if(payload_len == 0) {
+    return RADIO_TX_ERR;
+  }
+  if(simOutSize > 0) {
+    return RADIO_TX_ERR;
+  }
+
   /* Simulate turnaround time of 2ms for packets, 1ms for acks*/
 #if COOJA_SIMULATE_TURNAROUND
   simProcessRunValue = 1;
@@ -222,15 +235,9 @@ radio_send(const void *payload, unsigned short payload_len)
   if(!simRadioHWOn) {
     /* Turn on radio temporarily */
     simRadioHWOn = 1;
-  }
-  if(payload_len > COOJA_RADIO_BUFSIZE) {
-    return RADIO_TX_ERR;
-  }
-  if(payload_len == 0) {
-    return RADIO_TX_ERR;
-  }
-  if(simOutSize > 0) {
-    return RADIO_TX_ERR;
+    ENERGEST_ON(ENERGEST_TYPE_TRANSMIT);
+  } else {
+    ENERGEST_SWITCH(ENERGEST_TYPE_LISTEN, ENERGEST_TYPE_TRANSMIT);
   }
 
   /* Transmit on CCA */
@@ -247,6 +254,12 @@ radio_send(const void *payload, unsigned short payload_len)
   /* Transmit */
   while(simOutSize > 0) {
     cooja_mt_yield();
+  }
+
+  if(radiostate) {
+    ENERGEST_SWITCH(ENERGEST_TYPE_TRANSMIT, ENERGEST_TYPE_LISTEN);
+  } else {
+    ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
   }
 
   simRadioHWOn = radiostate;

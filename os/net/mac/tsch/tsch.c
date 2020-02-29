@@ -727,7 +727,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
 #endif
 
       tsch_association_count++;
-      LOG_INFO("association done (%u), sec %u, PAN ID %x, asn-%x.%lx, jp %u, timeslot id %u, hopping id %u, slotframe len %u with %u links, from ",
+      LOG_WARN("association done (%u), sec %u, PAN ID %x, asn-%x.%lx, jp %u, timeslot id %u, hopping id %u, slotframe len %u with %u links, from ",
              tsch_association_count,
              tsch_is_pan_secured,
              frame.src_pid,
@@ -736,8 +736,8 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
              ies.ie_channel_hopping_sequence_id,
              ies.ie_tsch_slotframe_and_link.slotframe_size,
              ies.ie_tsch_slotframe_and_link.num_links);
-      LOG_INFO_LLADDR((const linkaddr_t *)&frame.src_addr);
-      LOG_INFO_("\n");
+      LOG_WARN_LLADDR((const linkaddr_t *)&frame.src_addr);
+      LOG_WARN_("\n");
 
       return 1;
     }

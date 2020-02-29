@@ -71,6 +71,7 @@ NBR_TABLE(struct link_stats, link_stats);
 
 /* Called at a period of FRESHNESS_HALF_LIFE */
 struct ctimer periodic_timer;
+struct ctimer periodic_print_timer;
 
 /*---------------------------------------------------------------------------*/
 /* Returns the neighbor's link stats */
@@ -258,10 +259,10 @@ print_and_update_counters(void)
 
     struct link_packet_counter *c = &stats->cnt_current;
 
-    LOG_INFO("num packets: tx=%u ack=%u rx=%u to=",
+    LOG_WARN("num packets: tx=%u ack=%u rx=%u to=",
              c->num_packets_tx, c->num_packets_acked, c->num_packets_rx);
-    LOG_INFO_LLADDR(link_stats_get_lladdr(stats));
-    LOG_INFO_("\n");
+    LOG_WARN_LLADDR(link_stats_get_lladdr(stats));
+    LOG_WARN_("\n");
 
     stats->cnt_total.num_packets_tx += stats->cnt_current.num_packets_tx;
     stats->cnt_total.num_packets_acked += stats->cnt_current.num_packets_acked;
@@ -282,10 +283,12 @@ periodic(void *ptr)
   for(stats = nbr_table_head(link_stats); stats != NULL; stats = nbr_table_next(link_stats, stats)) {
     stats->freshness >>= 1;
   }
-
-#if LINK_STATS_PACKET_COUNTERS
+}
+static void
+periodic_print(void *ptr)
+{
+  ctimer_reset(&periodic_print_timer);
   print_and_update_counters();
-#endif
 }
 /*---------------------------------------------------------------------------*/
 /* Resets link-stats module */
@@ -306,4 +309,5 @@ link_stats_init(void)
 {
   nbr_table_register(link_stats, NULL);
   ctimer_set(&periodic_timer, FRESHNESS_HALF_LIFE, periodic, NULL);
+  ctimer_set(&periodic_print_timer, CLOCK_SECOND * 60, periodic_print, NULL);
 }
