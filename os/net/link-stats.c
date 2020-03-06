@@ -288,7 +288,9 @@ static void
 periodic_print(void *ptr)
 {
   ctimer_reset(&periodic_print_timer);
+#if LINK_STATS_PACKET_COUNTERS
   print_and_update_counters();
+#endif
 }
 /*---------------------------------------------------------------------------*/
 /* Resets link-stats module */
