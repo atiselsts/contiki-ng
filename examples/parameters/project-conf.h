@@ -32,6 +32,8 @@
 #define ORCHESTRA_CONF_UNICAST_PERIOD             19
 #endif
 
+#define ORCHESTRA_CONF_RULES { &eb_per_time_source, &unicast_per_neighbor_rpl_storing, &default_common }
+
 /*******************************************************/
 /************* Other system configuration **************/
 /*******************************************************/
