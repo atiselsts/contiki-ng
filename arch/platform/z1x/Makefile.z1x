@@ -1,0 +1,56 @@
+# Makefile for Z1x (extended)
+
+CLEAN += *.z1x
+
+MODULES += os/net/mac os/net/mac/framer os/net \
+           arch/dev/cc2420
+
+TARGET_MEMORY_MODEL=large
+
+SMALL=1
+
+ifdef GCC
+CFLAGS+=-Os -g
+endif
+
+ARCH=msp430.c leds.c xmem.c \
+     spi-legacy.c cc2420.c cc2420-arch.c cc2420-arch-sfd.c\
+     sensors.c button-sensor.c \
+     watchdog.c uart1.c uart1-putchar.c \
+     slip.c slip_uart1.c \
+
+ARCH += batmon-sensor.c \
+        bmp-280-sensor.c \
+        hdc-1000-sensor.c \
+        opt-3001-sensor.c \
+        pir-sensor.c \
+        flow-sensor.c \
+        piezo-sensor.c \
+        hw-watchdog.c
+
+ARCH += fgbridge.c
+
+CONTIKI_TARGET_DIRS = . dev dev/spes-2 apps/fgbridge net
+ifndef CONTIKI_TARGET_MAIN
+CONTIKI_TARGET_MAIN = contiki-z1x-main.c
+endif
+
+ifdef nodemac
+CFLAGS += -DMACID=$(nodemac)
+endif
+
+CONTIKI_TARGET_SOURCEFILES += $(ARCH) $(UIPDRIVERS)
+
+MCU=msp430f5437
+
+# Platform has a MSP430X MCU with 20-bit support
+CPU_HAS_MSP430X=1
+
+# Disable elfloader
+ELFLOADER=
+
+include $(CONTIKI)/arch/cpu/msp430/Makefile.msp430
+
+
+NUMPAR=20
+IHEXFILE=tmpimage.ihex
