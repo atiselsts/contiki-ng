@@ -210,8 +210,7 @@ channel_clear(void)
 static int
 radio_send(const void *payload, unsigned short payload_len)
 {
-  int result;
-  int radio_was_on = simRadioHWOn;
+  int radio_was_on;
 
   if(payload_len > COOJA_RADIO_BUFSIZE) {
     return RADIO_TX_ERR;
@@ -222,13 +221,16 @@ radio_send(const void *payload, unsigned short payload_len)
   if(simOutSize > 0) {
     return RADIO_TX_ERR;
   }
+  /* Transmit on CCA */
+  if(COOJA_TRANSMIT_ON_CCA && send_on_cca && !channel_clear()) {
+    return RADIO_TX_COLLISION;
+  }
 
-  if(radio_was_on) {
-    ENERGEST_SWITCH(ENERGEST_TYPE_LISTEN, ENERGEST_TYPE_TRANSMIT);
-  } else {
-    /* Turn on radio temporarily */
+  radio_was_on = simRadioHWOn;
+  if(!radio_was_on) {
+    /* Turn on radio temporarily for listening */
     simRadioHWOn = 1;
-    ENERGEST_ON(ENERGEST_TYPE_TRANSMIT);
+    ENERGEST_ON(ENERGEST_TYPE_LISTEN);
   }
 
 #if COOJA_SIMULATE_TURNAROUND
@@ -240,30 +242,24 @@ radio_send(const void *payload, unsigned short payload_len)
   }
 #endif /* COOJA_SIMULATE_TURNAROUND */
 
-  /* Transmit on CCA */
-  if(COOJA_TRANSMIT_ON_CCA && send_on_cca && !channel_clear()) {
-    result = RADIO_TX_COLLISION;
-  } else {
-    /* Copy packet data to temporary storage */
-    memcpy(simOutDataBuffer, payload, payload_len);
-    simOutSize = payload_len;
+  /* Copy packet data to temporary storage */
+  memcpy(simOutDataBuffer, payload, payload_len);
+  simOutSize = payload_len;
 
-    /* Transmit */
-    while(simOutSize > 0) {
-      cooja_mt_yield();
-    }
-
-    result = RADIO_TX_OK;
+  /* Transmit */
+  ENERGEST_SWITCH(ENERGEST_TYPE_LISTEN, ENERGEST_TYPE_TRANSMIT);
+  while(simOutSize > 0) {
+    cooja_mt_yield();
   }
 
+  simRadioHWOn = radio_was_on;
   if(radio_was_on) {
     ENERGEST_SWITCH(ENERGEST_TYPE_TRANSMIT, ENERGEST_TYPE_LISTEN);
   } else {
     ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
   }
 
-  simRadioHWOn = radio_was_on;
-  return result;
+  return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/
 static int
