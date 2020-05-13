@@ -132,10 +132,12 @@ void
 link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 {
   struct link_stats *stats;
+#if LINK_STATS_UPDATE_ETX_ON_SHARED_LINKS
 #if !LINK_STATS_ETX_FROM_PACKET_COUNT
   uint16_t packet_etx;
   uint8_t ewma_alpha;
 #endif /* !LINK_STATS_ETX_FROM_PACKET_COUNT */
+#endif /* LINK_STATS_UPDATE_ETX_ON_SHARED_LINKS */
 
   if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
     /* Do not penalize the ETX when collisions or transmission errors occur. */
@@ -179,6 +181,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     numtx += ETX_NOACK_PENALTY;
   }
 
+#if LINK_STATS_UPDATE_ETX_ON_SHARED_LINKS
 #if LINK_STATS_ETX_FROM_PACKET_COUNT
   /* Compute ETX from packet and ACK count */
   /* Halve both counter after TX_COUNT_MAX */
@@ -209,6 +212,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   stats->etx = ((uint32_t)stats->etx * (EWMA_SCALE - ewma_alpha) +
       (uint32_t)packet_etx * ewma_alpha) / EWMA_SCALE;
 #endif /* LINK_STATS_ETX_FROM_PACKET_COUNT */
+#endif /* LINK_STATS_UPDATE_ETX_ON_SHARED_LINKS */
 }
 /*---------------------------------------------------------------------------*/
 /* Packet input callback. Updates statistics for receptions on a given link */

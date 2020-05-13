@@ -138,6 +138,16 @@
 
 typedef uint16_t tsch_stat_t;
 
+enum {
+  TSCH_STATS_SLOT_RX_IDLE,
+  TSCH_STATS_SLOT_RX,
+  TSCH_STATS_SLOT_RX_TX_ACK,
+  TSCH_STATS_SLOT_TX,
+  TSCH_STATS_SLOT_TX_RX_ACK,
+
+  TSCH_STATS_NUM_SLOT_TYPES
+};
+
 struct tsch_global_stats {
   /* the maximum synchronization error */
   uint32_t max_sync_error;
@@ -149,6 +159,8 @@ struct tsch_global_stats {
   /* derived from `noise_rssi` and BUSY_CHANNEL_RSSI */
   tsch_stat_t channel_free_ewma[TSCH_STATS_NUM_CHANNELS];
 #endif /* TSCH_STATS_SAMPLE_NOISE_RSSI */
+  /* Number of slots of different types */
+  uint32_t slot_count[TSCH_STATS_NUM_SLOT_TYPES];
 };
 
 struct tsch_channel_stats {
@@ -177,6 +189,7 @@ extern struct tsch_global_stats tsch_stats;
 /* For the timesource neighbor */
 extern struct tsch_neighbor_stats tsch_neighbor_stats;
 
+extern const char *tsch_slot_type_names[TSCH_STATS_NUM_SLOT_TYPES];
 
 /************ Functions ***********/
 
@@ -194,6 +207,14 @@ struct tsch_neighbor_stats *tsch_stats_get_from_neighbor(struct tsch_neighbor *)
 
 void tsch_stats_reset_neighbor_stats(void);
 
+static inline void tsch_stats_add_slot(uint8_t type) {
+  tsch_stats.slot_count[type]++;
+}
+
+static inline void tsch_stats_add_slots(uint8_t type, uint32_t count) {
+  tsch_stats.slot_count[type] += count;
+}
+
 #else /* TSCH_STATS_ON */
 
 #define tsch_stats_init()
@@ -203,6 +224,8 @@ void tsch_stats_reset_neighbor_stats(void);
 #define tsch_stats_sample_rssi()
 #define tsch_stats_get_from_neighbor(neighbor) NULL
 #define tsch_stats_reset_neighbor_stats()
+#define tsch_stats_add_slot(type)
+#define tsch_stats_add_slots(type, count)
 
 #endif /* TSCH_STATS_ON */
 

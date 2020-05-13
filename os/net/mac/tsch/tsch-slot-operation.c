@@ -489,8 +489,12 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
    * successful Tx or Drop) */
   dequeued_index = ringbufindex_peek_put(&dequeued_ringbuf);
   if(dequeued_index != -1) {
+    /* wait for ack? */
+    static uint8_t do_wait_for_ack;
+
     if(current_packet == NULL || current_packet->qb == NULL) {
       mac_tx_status = MAC_TX_ERR_FATAL;
+      do_wait_for_ack = 0;
     } else {
       /* packet payload */
       static void *packet;
@@ -502,8 +506,6 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
       static uint8_t packet_len;
       /* packet seqno */
       static uint8_t seqno;
-      /* wait for ack? */
-      static uint8_t do_wait_for_ack;
       static rtimer_clock_t tx_start_time;
       /* Did we set the frame pending bit to request an extra burst link? */
       static int burst_link_requested;
@@ -735,6 +737,12 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
         log->tx.seqno = queuebuf_attr(current_packet->qb, PACKETBUF_ATTR_MAC_SEQNO);
     );
 
+    if(do_wait_for_ack) {
+      tsch_stats_add_slot(TSCH_STATS_SLOT_TX_RX_ACK);
+    } else {
+      tsch_stats_add_slot(TSCH_STATS_SLOT_TX);
+    }
+
     /* Poll process for later processing of packet sent events and logs */
     process_poll(&tsch_pending_events_process);
   }
@@ -761,10 +769,15 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   static linkaddr_t destination_address;
   static int16_t input_index;
   static int input_queue_drop = 0;
+  static uint8_t rx_frame;
+  static uint8_t tx_ack;
 
   PT_BEGIN(pt);
 
   TSCH_DEBUG_RX_EVENT();
+
+  rx_frame = 0;
+  tx_ack = 0;
 
   input_index = ringbufindex_peek_put(&input_ringbuf);
   if(input_index == -1) {
@@ -818,6 +831,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         radio_value_t radio_last_rssi;
         radio_value_t radio_last_lqi;
 
+        rx_frame = 1;
         /* Read packet */
         current_input->len = NETSTACK_RADIO.read((void *)current_input->payload, TSCH_PACKET_MAX_LEN);
         NETSTACK_RADIO.get_value(RADIO_PARAM_LAST_RSSI, &radio_last_rssi);
@@ -899,11 +913,11 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
                   &source_address, &destination_address);
             }
 #endif
-
             if(frame.fcf.ack_required) {
               static uint8_t ack_buf[TSCH_PACKET_MAX_LEN];
               static int ack_len;
 
+              tx_ack = 1;
               /* Build ACK frame */
               ack_len = tsch_packet_create_eack(ack_buf, sizeof(ack_buf),
                   &source_address, frame.seq, (int16_t)RTIMERTICKS_TO_US(estimated_drift), do_nack);
@@ -984,6 +998,14 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       );
       input_queue_drop = 0;
     }
+  }
+
+  if(tx_ack) {
+    tsch_stats_add_slot(TSCH_STATS_SLOT_RX_TX_ACK);
+  } else if (rx_frame) {
+    tsch_stats_add_slot(TSCH_STATS_SLOT_RX);
+  } else {
+    tsch_stats_add_slot(TSCH_STATS_SLOT_RX_IDLE);
   }
 
   TSCH_DEBUG_RX_EVENT();

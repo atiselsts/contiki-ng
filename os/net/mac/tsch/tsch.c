@@ -56,6 +56,7 @@
 #include "net/mac/tsch/tsch.h"
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
+#include "lib/assert.h"
 #include "net/routing/routing.h"
 
 #if TSCH_WITH_SIXTOP
@@ -743,6 +744,14 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
              ies.ie_tsch_slotframe_and_link.num_links);
       LOG_INFO_LLADDR((const linkaddr_t *)&frame.src_addr);
       LOG_INFO_("\n");
+
+      if(tsch_association_count == 1) {
+        /* Hack to make the results comparable with other simulations: aAdd idle slot for every ASN */
+        tsch_stats_add_slots(TSCH_STATS_SLOT_RX_IDLE, tsch_current_asn.ls4b);
+      } else {
+        /* not implemented yet */
+        assert(!"TODO");
+      }
 
       return 1;
     }

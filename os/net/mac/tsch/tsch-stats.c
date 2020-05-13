@@ -51,6 +51,14 @@
 struct tsch_global_stats tsch_stats;
 struct tsch_neighbor_stats tsch_neighbor_stats;
 
+const char *tsch_slot_type_names[TSCH_STATS_NUM_SLOT_TYPES] = {
+  "idle_listen",
+  "rx_data",
+  "rx_data_tx_ack",
+  "tx_data",
+  "tx_data_rx_ack",
+};
+
 /* Called every TSCH_STATS_DECAY_INTERVAL ticks */
 static struct ctimer periodic_timer;
 

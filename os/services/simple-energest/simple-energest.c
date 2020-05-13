@@ -44,6 +44,7 @@
 #include "contiki.h"
 #include "sys/energest.h"
 #include "simple-energest.h"
+#include "net/mac/tsch/tsch.h"
 #include <stdio.h>
 #include <limits.h>
 
@@ -100,6 +101,16 @@ simple_energest_step(void)
   LOG_INFO("Radio Tx    : %10lu/%10lu (%lu permil)\n", delta_tx, delta_time, to_permil(delta_tx, delta_time));
   LOG_INFO("Radio Rx    : %10lu/%10lu (%lu permil)\n", delta_rx, delta_time, to_permil(delta_rx, delta_time));
   LOG_INFO("Radio total : %10lu/%10lu (%lu permil)\n", delta_tx+delta_rx, delta_time, to_permil(delta_tx+delta_rx, delta_time));
+
+#if TSCH_STATS_ON
+  int i;
+  LOG_INFO("TSCH stats: {");
+  for(i = 0; i < TSCH_STATS_NUM_SLOT_TYPES; ++i) {
+    const char *comma = (i == 0 ? "" : ", ");
+    LOG_INFO_("%s\"%s\": %lu", comma, tsch_slot_type_names[i], tsch_stats.slot_count[i]);
+  }
+  LOG_INFO_("}\n");
+#endif
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(simple_energest_process, ev, data)
