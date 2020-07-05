@@ -40,16 +40,20 @@
 # To invoke the building for a specific platform, run:
 # $ PLATFORMS=zoul ./build.sh
 #
+CONTIKI_NG_TOP_DIR="../.."
+EXAMPLES_DIR=$CONTIKI_NG_TOP_DIR/examples
 
 if [[ "$PLATFORMS" == "" ]]
 then
-    PLATFORMS=`ls ../../arch/platform`
+    PLATFORMS=`ls $CONTIKI_NG_TOP_DIR/arch/platform`
 fi
 
 if [[ "$MAKEFILES" == "" ]]
 then
-    MAKEFILES=`find ../../examples/ -name Makefile`
+    MAKEFILES=`find $EXAMPLES_DIR -name Makefile`
 fi
+
+HELLO_WORLD=$EXAMPLES_DIR/hello-world
 
 # Set the make goal the first argument of the script or to "all" if called w/o arguments
 if [[ $# -gt 0 ]]
@@ -84,8 +88,11 @@ else
 fi
 
 NUM_SUCCESS=0
+NUM_SKIPPED=0
 NUM_FAILED=0
 
+rm -f failed.log
+rm -f failed-full.log
 FAILED=
 
 for platform in $PLATFORMS
@@ -97,16 +104,14 @@ do
         continue
     fi
 
-    if [[ "$platform" == "srf06-cc26xx" ]]
+    # Detect all boards for the current platform by calling
+    # make TARGET=$platform boards
+    # in the hello-world dir.
+    BOARDS=`make -s -C $HELLO_WORLD TARGET=$platform boards \
+            | grep -v "no boards" | rev | cut -f3- -d" " | rev`
+
+    if [[ -z $BOARDS ]]
     then
-        # srf06-cc26xx has multiple boards
-        BOARDS="srf06/cc26xx srf06/cc13xx launchpad/cc2650 launchpad/cc1350 sensortag/cc2650 sensortag/cc1350"
-    elif [[ "$platform" == "zoul" ]]
-    then
-        # Zoul has multiple boards
-        BOARDS="remote-reva remote-revb firefly-reva firefly orion"
-    else
-        # Other platforms have just a single board
         BOARDS="default"
     fi
 
@@ -130,14 +135,23 @@ do
 
             # Build the goal
             $LOG_INFO "make -C \"$example_dir\" -j TARGET=$platform BOARD=$board $GOAL"
-            if make -C "$example_dir" -j TARGET=$platform BOARD=$board $GOAL 2>&1 >build.log
+            if make -C "$example_dir" -j TARGET=$platform BOARD=$board $GOAL >build.log 2>&1
             then
                 $LOG_INFO "..done"
                 $CAT_DEBUG build.log
-                NUM_SUCCESS=$(($NUM_SUCCESS + 1))
+                if [[ `grep Skipping build.log` ]]
+                then
+                    NUM_SKIPPED=$(($NUM_SKIPPED + 1))
+                else
+                    NUM_SUCCESS=$(($NUM_SUCCESS + 1))
+                fi
             else
                 $LOG_INFO "Failed to build $example_dir for $platform ($board)"
                 $CAT_DEBUG build.log
+                echo "TARGET=$platform BOARD=$board $example_dir" >> failed.log
+                echo "TARGET=$platform BOARD=$board $example_dir" >> failed-full.log
+                cat build.log >> failed-full.log
+                echo "=====================" >> failed-full.log
                 NUM_FAILED=$(($NUM_FAILED + 1))
                 FAILED="$FAILED; $example_dir for $platform ($board)"
             fi
@@ -151,7 +165,8 @@ done
 # If building, not cleaning, print so statistics
 if [[ "$GOAL" == "all" ]]
 then
-    $LOG_INFO "Number of examples skipped or built successfully: $NUM_SUCCESS"
+    $LOG_INFO "Number of examples built successfully: $NUM_SUCCESS"
+    $LOG_INFO "Number of examples skipped: $NUM_SKIPPED"
     $LOG_INFO "Number of examples that failed to build: $NUM_FAILED"
     $LOG_INFO "Failed examples: $FAILED"
 fi

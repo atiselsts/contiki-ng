@@ -37,7 +37,7 @@
  */
 
 #include "contiki.h"
-#include "node-id.h"
+#include "sys/node-id.h"
 #include "sys/log.h"
 #include "net/ipv6/uip-ds6-route.h"
 #include "net/ipv6/uip-sr.h"
@@ -60,7 +60,7 @@ PROCESS_THREAD(node_process, ev, data)
 
   is_coordinator = 0;
 
-#if CONTIKI_TARGET_COOJA
+#if CONTIKI_TARGET_COOJA || CONTIKI_TARGET_Z1
   is_coordinator = (node_id == 1);
 #endif
 

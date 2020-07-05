@@ -79,6 +79,11 @@ client_chunk_handler(coap_message_t *response)
 {
   const uint8_t *chunk;
 
+  if(response == NULL) {
+    puts("Request timed out");
+    return;
+  }
+
   int len = coap_get_payload(response, &chunk);
 
   printf("|%.*s", len, (char *)chunk);
@@ -91,9 +96,6 @@ PROCESS_THREAD(er_example_client, ev, data)
   static coap_message_t request[1];      /* This way the packet can be treated as pointer as usual. */
 
   coap_endpoint_parse(SERVER_EP, strlen(SERVER_EP), &server_ep);
-
-  /* receives all CoAP messages */
-  coap_engine_init();
 
   etimer_set(&et, TOGGLE_INTERVAL * CLOCK_SECOND);
 

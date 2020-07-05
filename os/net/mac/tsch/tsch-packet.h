@@ -101,6 +101,32 @@ int tsch_packet_update_eb(uint8_t *buf, int buf_size, uint8_t tsch_sync_ie_offse
 int tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
     frame802154_t *frame, struct ieee802154_ies *ies,
     uint8_t *hdrlen, int frame_without_mic);
+/**
+ * \brief Set frame pending bit in a packet (whose header was already build)
+ * \param buf The buffer where the packet resides
+ * \param buf_size The buffer size
+ */
+void tsch_packet_set_frame_pending(uint8_t *buf, int buf_size);
+/**
+ * \brief Get frame pending bit from a packet
+ * \param buf The buffer where the packet resides
+ * \param buf_size The buffer size
+ * \return The value of the frame pending bit, 1 or 0
+ */
+int tsch_packet_get_frame_pending(uint8_t *buf, int buf_size);
+/**
+ * \brief Set a packet attribute for the current eack. We not use standard
+ * packetbuf for eacks because these are generated from interrupt context.
+ * \param type The attribute identifier
+ * \param val The attribute value
+ */
+void tsch_packet_eackbuf_set_attr(uint8_t type, const packetbuf_attr_t val);
+/**
+ * \brief Return the value of a specified attribute
+ * \param type The attribute identifier
+ * \return The attribute value
+ */
+packetbuf_attr_t tsch_packet_eackbuf_attr(uint8_t type);
 
 #endif /* __TSCH_PACKET_H__ */
 /** @} */

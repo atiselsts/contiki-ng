@@ -62,10 +62,6 @@
 #define RPL_DIO_MOP_MASK                 0x38
 #define RPL_DIO_PREFERENCE_MASK          0x07
 
-#define UIP_IP_BUF       ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
-#define UIP_ICMP_BUF     ((struct uip_icmp_hdr *)&uip_buf[uip_l2_l3_hdr_len])
-#define UIP_ICMP_PAYLOAD ((unsigned char *)&uip_buf[uip_l2_l3_icmp_hdr_len])
-
 /*---------------------------------------------------------------------------*/
 static void dis_input(void);
 static void dio_input(void);
@@ -147,7 +143,7 @@ dis_input(void)
   rpl_process_dis(&UIP_IP_BUF->srcipaddr, uip_is_addr_mcast(&UIP_IP_BUF->destipaddr));
 
   discard:
-    uip_clear_buf();
+    uipbuf_clear();
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -329,7 +325,7 @@ dio_input(void)
   rpl_process_dio(&from, &dio);
 
 discard:
-  uip_clear_buf();
+  uipbuf_clear();
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -342,14 +338,14 @@ rpl_icmp6_dio_output(uip_ipaddr_t *uc_addr)
   /* Make sure we're up-to-date before sending data out */
   rpl_dag_update_state();
 
-#if RPL_LEAF_ONLY
-  /* In leaf mode, we only send DIO messages as unicasts in response to
-     unicast DIS messages. */
-  if(uc_addr == NULL) {
-    /* Do not send multicast DIO in leaf mode */
-    return;
+  if(rpl_get_leaf_only()) {
+    /* In leaf mode, we only send DIO messages as unicasts in response to
+       unicast DIS messages. */
+    if(uc_addr == NULL) {
+      /* Do not send multicast DIO in leaf mode */
+      return;
+    }
   }
-#endif /* RPL_LEAF_ONLY */
 
   /* DAG Information Object */
   pos = 0;
@@ -358,11 +354,11 @@ rpl_icmp6_dio_output(uip_ipaddr_t *uc_addr)
   buffer[pos++] = curr_instance.instance_id;
   buffer[pos++] = curr_instance.dag.version;
 
-#if RPL_LEAF_ONLY
-  set16(buffer, pos, RPL_INFINITE_RANK);
-#else /* RPL_LEAF_ONLY */
-  set16(buffer, pos, curr_instance.dag.rank);
-#endif /* RPL_LEAF_ONLY */
+  if(rpl_get_leaf_only()) {
+    set16(buffer, pos, RPL_INFINITE_RANK);
+  } else {
+    set16(buffer, pos, curr_instance.dag.rank);
+  }
   pos += 2;
 
   buffer[pos] = 0;
@@ -383,29 +379,29 @@ rpl_icmp6_dio_output(uip_ipaddr_t *uc_addr)
   memcpy(buffer + pos, &curr_instance.dag.dag_id, sizeof(curr_instance.dag.dag_id));
   pos += 16;
 
-#if !RPL_LEAF_ONLY
-  if(curr_instance.mc.type != RPL_DAG_MC_NONE) {
-    buffer[pos++] = RPL_OPTION_DAG_METRIC_CONTAINER;
-    buffer[pos++] = 6;
-    buffer[pos++] = curr_instance.mc.type;
-    buffer[pos++] = curr_instance.mc.flags >> 1;
-    buffer[pos] = (curr_instance.mc.flags & 1) << 7;
-    buffer[pos++] |= (curr_instance.mc.aggr << 4) | curr_instance.mc.prec;
-    if(curr_instance.mc.type == RPL_DAG_MC_ETX) {
-      buffer[pos++] = 2;
-      set16(buffer, pos, curr_instance.mc.obj.etx);
-      pos += 2;
-    } else if(curr_instance.mc.type == RPL_DAG_MC_ENERGY) {
-      buffer[pos++] = 2;
-      buffer[pos++] = curr_instance.mc.obj.energy.flags;
-      buffer[pos++] = curr_instance.mc.obj.energy.energy_est;
-    } else {
-      LOG_ERR("unable to send DIO because of unsupported DAG MC type %u\n",
-             (unsigned)curr_instance.mc.type);
-      return;
+  if(!rpl_get_leaf_only()) {
+    if(curr_instance.mc.type != RPL_DAG_MC_NONE) {
+      buffer[pos++] = RPL_OPTION_DAG_METRIC_CONTAINER;
+      buffer[pos++] = 6;
+      buffer[pos++] = curr_instance.mc.type;
+      buffer[pos++] = curr_instance.mc.flags >> 1;
+      buffer[pos] = (curr_instance.mc.flags & 1) << 7;
+      buffer[pos++] |= (curr_instance.mc.aggr << 4) | curr_instance.mc.prec;
+      if(curr_instance.mc.type == RPL_DAG_MC_ETX) {
+        buffer[pos++] = 2;
+        set16(buffer, pos, curr_instance.mc.obj.etx);
+        pos += 2;
+      } else if(curr_instance.mc.type == RPL_DAG_MC_ENERGY) {
+        buffer[pos++] = 2;
+        buffer[pos++] = curr_instance.mc.obj.energy.flags;
+        buffer[pos++] = curr_instance.mc.obj.energy.energy_est;
+      } else {
+        LOG_ERR("unable to send DIO because of unsupported DAG MC type %u\n",
+               (unsigned)curr_instance.mc.type);
+        return;
+      }
     }
   }
-#endif /* !RPL_LEAF_ONLY */
 
   /* Always add a DAG configuration option. */
   buffer[pos++] = RPL_OPTION_DAG_CONF;
@@ -442,9 +438,9 @@ rpl_icmp6_dio_output(uip_ipaddr_t *uc_addr)
     pos += 16;
   }
 
-#if !RPL_LEAF_ONLY
-  addr = addr != NULL ? addr : &rpl_multicast_addr;
-#endif /* RPL_LEAF_ONLY */
+  if(!rpl_get_leaf_only()) {
+    addr = addr != NULL ? addr : &rpl_multicast_addr;
+  }
 
   LOG_INFO("sending a %s-DIO with rank %u to ",
          uc_addr != NULL ? "unicast" : "multicast",
@@ -540,7 +536,7 @@ dao_input(void)
   rpl_process_dao(&from, &dao);
 
   discard:
-    uip_clear_buf();
+    uipbuf_clear();
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -583,7 +579,7 @@ rpl_icmp6_dao_output(uint8_t lifetime)
 #endif /* RPL_WITH_DAO_ACK */
   ++pos;
   buffer[pos++] = 0; /* reserved */
-  buffer[pos++] = curr_instance.dag.dao_curr_seqno;
+  buffer[pos++] = curr_instance.dag.dao_last_seqno;
 
   /* create target subopt */
   prefixlen = sizeof(*prefix) * CHAR_BIT;
@@ -610,7 +606,7 @@ rpl_icmp6_dao_output(uint8_t lifetime)
 
   LOG_INFO("sending a %sDAO seqno %u, tx count %u, lifetime %u, prefix ",
          lifetime == 0 ? "No-path " : "",
-         curr_instance.dag.dao_curr_seqno, curr_instance.dag.dao_transmissions, lifetime);
+         curr_instance.dag.dao_last_seqno, curr_instance.dag.dao_transmissions, lifetime);
   LOG_INFO_6ADDR(prefix);
   LOG_INFO_(" to ");
   LOG_INFO_6ADDR(&curr_instance.dag.dag_id);
@@ -644,14 +640,14 @@ dao_ack_input(void)
 
   LOG_INFO("received a DAO-%s with seqno %d (%d %d) and status %d from ",
          status < RPL_DAO_ACK_UNABLE_TO_ACCEPT ? "ACK" : "NACK", sequence,
-         curr_instance.dag.dao_curr_seqno, curr_instance.dag.dao_curr_seqno, status);
+         curr_instance.dag.dao_last_seqno, curr_instance.dag.dao_last_seqno, status);
   LOG_INFO_6ADDR(&UIP_IP_BUF->srcipaddr);
   LOG_INFO_("\n");
 
   rpl_process_dao_ack(sequence, status);
 
   discard:
-    uip_clear_buf();
+    uipbuf_clear();
 }
 /*---------------------------------------------------------------------------*/
 void

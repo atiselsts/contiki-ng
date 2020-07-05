@@ -67,8 +67,9 @@ static uint16_t slip_rubbish, slip_twopackets, slip_overflow, slip_ip_drop;
 #define SLIP_BUF_NB 5
 #endif
 
-#define RX_BUFSIZE (SLIP_BUF_NB * (UIP_BUFSIZE - UIP_LLH_LEN + 16))
+#define RX_BUFSIZE (SLIP_BUF_NB * (UIP_BUFSIZE + 16))
 
+/*---------------------------------------------------------------------------*/
 enum {
   STATE_TWOPACKETS = 0, /* We have 2 packets and drop incoming data. */
   STATE_OK = 1,
@@ -121,7 +122,7 @@ crc8_add(uint8_t acc, uint8_t byte)
 void
 slip_send(void)
 {
-  slip_write(&uip_buf[UIP_LLH_LEN], uip_len);
+  slip_write(uip_buf, uip_len);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -334,8 +335,7 @@ PROCESS_THREAD(slip_process, ev, data)
     slip_active = 1;
 
     /* Move packet from rxbuf to buffer provided by uIP. */
-    uip_len = slip_poll_handler(&uip_buf[UIP_LLH_LEN],
-                                UIP_BUFSIZE - UIP_LLH_LEN);
+    uip_len = slip_poll_handler(uip_buf, UIP_BUFSIZE);
 
     if(uip_len > 0) {
       if(input_callback) {

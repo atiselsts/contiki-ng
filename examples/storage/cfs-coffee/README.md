@@ -21,9 +21,9 @@ Supported Hardware (tested or known to work)
 * wismote
 * avr-raven
 * cc2538dk
-* openmote-cc2538
+* openmote
 * zoul
-* TI srf06-cc26xx
+* TI cc26x0-cc13x0
     - sensortag
     - launchpad
 

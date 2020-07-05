@@ -34,6 +34,7 @@
  * \author
  *      Joakim Eriksson, joakime@sics.se
  *      Niclas Finne, nfi@sics.se
+ *      Carlos Gonzalo Peces, carlosgp143@gmail.com
  */
 
 #include "contiki.h"
@@ -51,16 +52,26 @@
 #define DEBUG DEBUG_NONE
 #include "net/ipv6/uip-debug.h"
 
+/* Define this macro to non-zero to register via a bootstrap server */
 #ifndef REGISTER_WITH_LWM2M_BOOTSTRAP_SERVER
 #define REGISTER_WITH_LWM2M_BOOTSTRAP_SERVER 0
 #endif
 
-#ifndef REGISTER_WITH_LWM2M_SERVER
-#define REGISTER_WITH_LWM2M_SERVER 1
+#if REGISTER_WITH_LWM2M_BOOTSTRAP_SERVER
+#define SERVER_TYPE LWM2M_RD_CLIENT_BOOTSTRAP_SERVER
+#else
+#define SERVER_TYPE LWM2M_RD_CLIENT_LWM2M_SERVER
 #endif
 
 #ifndef LWM2M_SERVER_ADDRESS
 #define LWM2M_SERVER_ADDRESS "coap://[fd00::1]"
+#endif
+
+static lwm2m_session_info_t session_info;
+
+/* Define this macro to register with a second LWM2M server */
+#ifdef LWM2M_SERVER_ADDRESS_SECOND
+static lwm2m_session_info_t session_info_second;
 #endif
 
 #if BOARD_SENSORTAG
@@ -77,7 +88,7 @@ read_temp_value(const ipso_sensor_t *s, int32_t *value)
 static lwm2m_status_t
 read_hum_value(const ipso_sensor_t *s, int32_t *value)
 {
-  *value = 10 * hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_HUMIDITY);
+  *value = 10 * hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_HUMID);
   return LWM2M_STATUS_OK;
 }
 /* Lux reading */
@@ -148,13 +159,17 @@ setup_lwm2m_servers(void)
   coap_endpoint_t server_ep;
   if(coap_endpoint_parse(LWM2M_SERVER_ADDRESS, strlen(LWM2M_SERVER_ADDRESS),
                          &server_ep) != 0) {
-    lwm2m_rd_client_register_with_bootstrap_server(&server_ep);
-    lwm2m_rd_client_register_with_server(&server_ep);
+    lwm2m_rd_client_register_with_server(&session_info, &server_ep, SERVER_TYPE);
   }
 #endif /* LWM2M_SERVER_ADDRESS */
 
-  lwm2m_rd_client_use_bootstrap_server(REGISTER_WITH_LWM2M_BOOTSTRAP_SERVER);
-  lwm2m_rd_client_use_registration_server(REGISTER_WITH_LWM2M_SERVER);
+#ifdef LWM2M_SERVER_ADDRESS_SECOND
+  coap_endpoint_t server_ep_second;
+  if(coap_endpoint_parse(LWM2M_SERVER_ADDRESS_SECOND, strlen(LWM2M_SERVER_ADDRESS_SECOND),
+                         &server_ep_second) != 0) {
+    lwm2m_rd_client_register_with_server(&session_info_second, &server_ep_second, SERVER_TYPE);
+  }
+#endif /* LWM2M_SERVER_ADDRESS_SECOND */
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(example_ipso_objects, ev, data)

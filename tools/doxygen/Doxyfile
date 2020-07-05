@@ -807,8 +807,12 @@ EXCLUDE_SYMLINKS       = NO
 # Note that the wildcards are matched against the file with absolute path, so to
 # exclude all test directories for example use the pattern */test/*
 
-EXCLUDE_PATTERNS       = */cpu/cc26xx-cc13xx/lib/* \
-                         */cpu/cc26xx-cc13xx/rf-core/api/* \
+EXCLUDE_PATTERNS       = */cpu/cc26x0-cc13x0/lib/* \
+                         */cpu/cc26x0-cc13x0/rf-core/api/* \
+                         */cpu/simplelink-cc13xx-cc26xx/lib/* \
+                         */cpu/simplelink-cc13xx-cc26xx/rf-settings/* \
+                         */cpu/simplelink-cc13xx-cc26xx/cc13x0-cc26x0/driverlib/* \
+                         */cpu/simplelink-cc13xx-cc26xx/cc13x0-cc26x0/rf_patches/* \
                          */platform/stm32nucleo-spirit1/stm32cube-lib/* \
                          */os/net/security/tinydtls/*
 
@@ -1970,7 +1974,8 @@ PREDEFINED             = CC_FUNCTION_POINTER_ARGS:=1 \
                          EEMEM:= \
                          DOXYGEN:=1 \
                          DOXYGEN_SHOULD_SKIP_THIS:=1 \
-                         "ASCCMD(name, flags, args):=void CMD_ASCII(name)"
+                         "ASCCMD(name, flags, args):=void CMD_ASCII(name)" \
+                         MQTT_CONF_VERSION:=MQTT_PROTOCOL_VERSION_5
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

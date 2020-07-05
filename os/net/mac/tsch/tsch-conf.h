@@ -71,14 +71,20 @@
 #define TSCH_DESYNC_THRESHOLD (2 * TSCH_MAX_KEEPALIVE_TIMEOUT)
 #endif
 
-/* Period between two consecutive EBs */
+/* The default period between two consecutive EBs (not taking into account any randomization).
+ * When TSCH_CONF_EB_PERIOD is set to 0, sending EBs is disabled completely; the EB process is not started.
+ * Otherwise, if RPL is used, TSCH_CONF_EB_PERIOD used only before joining the RPL network;
+ * afterwards, the EB period is set dynamically based on RPL DIO period, updated whenever
+ * the DIO period changes, and is upper bounded by TSCH_MAX_EB_PERIOD.
+ */
 #ifdef TSCH_CONF_EB_PERIOD
 #define TSCH_EB_PERIOD TSCH_CONF_EB_PERIOD
 #else
 #define TSCH_EB_PERIOD (16 * CLOCK_SECOND)
 #endif
 
-/* Max Period between two consecutive EBs */
+/* Max Period between two consecutive EBs.
+ * Has no effect when TSCH_EB_PERIOD is zero. */
 #ifdef TSCH_CONF_MAX_EB_PERIOD
 #define TSCH_MAX_EB_PERIOD TSCH_CONF_MAX_EB_PERIOD
 #else
@@ -151,7 +157,7 @@
 #ifdef TSCH_CONF_HOPPING_SEQUENCE_MAX_LEN
 #define TSCH_HOPPING_SEQUENCE_MAX_LEN TSCH_CONF_HOPPING_SEQUENCE_MAX_LEN
 #else
-#define TSCH_HOPPING_SEQUENCE_MAX_LEN 16
+#define TSCH_HOPPING_SEQUENCE_MAX_LEN sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE)
 #endif
 
 /******** Configuration: association *******/
@@ -317,6 +323,15 @@
 #define TSCH_SCHEDULE_WITH_6TISCH_MINIMAL (!(BUILD_WITH_ORCHESTRA))
 #endif
 
+/* Set an upper bound on burst length. Set to 0 to never set the frame pending
+ * bit, i.e., never trigger a burst. Note that receiver-side support for burst
+ * is always enabled, as it is part of IEEE 802.1.5.4-2015 (Section 7.2.1.3)*/
+#ifdef TSCH_CONF_BURST_MAX_LEN
+#define TSCH_BURST_MAX_LEN TSCH_CONF_BURST_MAX_LEN
+#else
+#define TSCH_BURST_MAX_LEN 32
+#endif
+
 /* 6TiSCH Minimal schedule slotframe length */
 #ifdef TSCH_SCHEDULE_CONF_DEFAULT_LENGTH
 #define TSCH_SCHEDULE_DEFAULT_LENGTH TSCH_SCHEDULE_CONF_DEFAULT_LENGTH
@@ -353,21 +368,31 @@
 #define TSCH_WITH_LINK_SELECTOR (BUILD_WITH_ORCHESTRA)
 #endif /* TSCH_CONF_WITH_LINK_SELECTOR */
 
+/* Configurable link comparator in case multiple links are scheduled at the same slot */
+#ifdef TSCH_CONF_LINK_COMPARATOR
+#define TSCH_LINK_COMPARATOR TSCH_CONF_LINK_COMPARATOR
+#else
+#define TSCH_LINK_COMPARATOR(a, b) default_tsch_link_comparator(a, b)
+#endif
+
 /******** Configuration: CSMA *******/
 
 /* TSCH CSMA-CA parameters, see IEEE 802.15.4e-2012 */
+
 /* Min backoff exponent */
 #ifdef TSCH_CONF_MAC_MIN_BE
 #define TSCH_MAC_MIN_BE TSCH_CONF_MAC_MIN_BE
 #else
 #define TSCH_MAC_MIN_BE 1
 #endif
+
 /* Max backoff exponent */
 #ifdef TSCH_CONF_MAC_MAX_BE
 #define TSCH_MAC_MAX_BE TSCH_CONF_MAC_MAX_BE
 #else
 #define TSCH_MAC_MAX_BE 5
 #endif
+
 /* Max number of re-transmissions */
 #ifdef TSCH_CONF_MAC_MAX_FRAME_RETRIES
 #define TSCH_MAC_MAX_FRAME_RETRIES TSCH_CONF_MAC_MAX_FRAME_RETRIES
@@ -380,6 +405,13 @@
 #define TSCH_PACKET_EACK_WITH_SRC_ADDR TSCH_PACKET_CONF_EACK_WITH_SRC_ADDR
 #else
 #define TSCH_PACKET_EACK_WITH_SRC_ADDR 0
+#endif
+
+/* Perform CCA before sending? */
+#ifdef TSCH_CONF_CCA_ENABLED
+#define TSCH_CCA_ENABLED TSCH_CONF_CCA_ENABLED
+#else
+#define TSCH_CCA_ENABLED 0
 #endif
 
 /* Include destination address in ACK? */
@@ -406,12 +438,12 @@ by default, useful in case of duplicate seqno */
 #define TSCH_RADIO_ON_DURING_TIMESLOT 0
 #endif
 
-
-
-/* Timeslot timing */
-#ifndef TSCH_CONF_DEFAULT_TIMESLOT_LENGTH
-#define TSCH_CONF_DEFAULT_TIMESLOT_LENGTH 10000
-#endif /* TSCH_CONF_DEFAULT_TIMESLOT_LENGTH */
+/* TSCH timeslot timing template */
+#ifdef TSCH_CONF_DEFAULT_TIMESLOT_TIMING
+#define TSCH_DEFAULT_TIMESLOT_TIMING TSCH_CONF_DEFAULT_TIMESLOT_TIMING
+#else
+#define TSCH_DEFAULT_TIMESLOT_TIMING tsch_timeslot_timing_us_10000
+#endif
 
 /* Configurable Rx guard time is micro-seconds */
 #ifndef TSCH_CONF_RX_WAIT

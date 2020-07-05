@@ -107,9 +107,6 @@ struct tsch_packet {
 
 /** \brief TSCH neighbor information */
 struct tsch_neighbor {
-  /* Neighbors are stored as a list: "next" must be the first field */
-  struct tsch_neighbor *next;
-  linkaddr_t addr; /* MAC address of the neighbor */
   uint8_t is_broadcast; /* is this neighbor a virtual neighbor used for broadcast (of data packets or EBs) */
   uint8_t is_time_source; /* is this neighbor a time source? */
   uint8_t backoff_exponent; /* CSMA backoff exponent */
@@ -141,6 +138,12 @@ enum tsch_timeslot_timing_elements {
   tsch_ts_timeslot_length,
   tsch_ts_elements_count, /* Not a timing element */
 };
+
+/** \brief TSCH timeslot timing elements in rtimer ticks */
+typedef rtimer_clock_t tsch_timeslot_timing_ticks[tsch_ts_elements_count];
+
+/** \brief TSCH timeslot timing elements in micro-seconds */
+typedef uint16_t tsch_timeslot_timing_usec[tsch_ts_elements_count];
 
 /** \brief Stores data about an incoming packet */
 struct input_packet {

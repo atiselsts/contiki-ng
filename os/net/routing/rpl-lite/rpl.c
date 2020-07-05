@@ -50,6 +50,7 @@
 #define LOG_LEVEL LOG_LEVEL_RPL
 
 uip_ipaddr_t rpl_multicast_addr;
+static uint8_t rpl_leaf_only = RPL_DEFAULT_LEAF_ONLY;
 
 /*---------------------------------------------------------------------------*/
 int
@@ -98,6 +99,13 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
   if(curr_instance.used == 1 ) {
     rpl_nbr_t *nbr = rpl_neighbor_get_from_lladdr((uip_lladdr_t *)addr);
     if(nbr != NULL) {
+      /* If this is the neighbor we were probing urgently, mark urgent
+      probing as done */
+#if RPL_WITH_PROBING
+      if(curr_instance.dag.urgent_probing_target == nbr) {
+        curr_instance.dag.urgent_probing_target = NULL;
+      }
+#endif
       /* Link stats were updated, and we need to update our internal state.
       Updating from here is unsafe; postpone */
       LOG_INFO("packet sent to ");
@@ -155,7 +163,7 @@ rpl_set_prefix_from_addr(uip_ipaddr_t *addr, unsigned len, uint8_t flags)
   }
 
   /* Try and initialize prefix */
-  memset(&curr_instance.dag.prefix_info.prefix, 0, sizeof(rpl_prefix_t));
+  memset(&curr_instance.dag.prefix_info.prefix, 0, sizeof(uip_ipaddr_t));
   memcpy(&curr_instance.dag.prefix_info.prefix, addr, (len + 7) / 8);
   curr_instance.dag.prefix_info.length = len;
   curr_instance.dag.prefix_info.lifetime = RPL_ROUTE_INFINITE_LIFETIME;
@@ -223,6 +231,18 @@ drop_route(uip_ds6_route_t *route)
   /* Do nothing. RPL-lite only supports non-storing mode, i.e. no routes */
 }
 /*---------------------------------------------------------------------------*/
+void
+rpl_set_leaf_only(uint8_t value)
+{
+  rpl_leaf_only = value;
+}
+/*---------------------------------------------------------------------------*/
+uint8_t
+rpl_get_leaf_only(void)
+{
+  return rpl_leaf_only;
+}
+/*---------------------------------------------------------------------------*/
 const struct routing_driver rpl_lite_driver = {
   "RPL Lite",
   init,
@@ -244,6 +264,7 @@ const struct routing_driver rpl_lite_driver = {
   rpl_link_callback,
   neighbor_state_changed,
   drop_route,
+  rpl_get_leaf_only,
 };
 /*---------------------------------------------------------------------------*/
 

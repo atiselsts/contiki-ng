@@ -59,11 +59,10 @@
  * NOTE: this policy assumes that all neighbors end up being IPv6
  * neighbors and are not only MAC neighbors.
  */
-#define UIP_IP_BUF    ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
 
 static int num_parents;   /* all nodes that are possible parents */
 static int num_free;
-static linkaddr_t *worst_rank_nbr_lladdr; /* lladdr of the the neighbor with the worst rank */
+static const linkaddr_t *worst_rank_nbr_lladdr; /* lladdr of the the neighbor with the worst rank */
 static rpl_rank_t worst_rank;
 
 /*---------------------------------------------------------------------------*/
@@ -79,10 +78,10 @@ update_state(void)
   worst_rank_nbr_lladdr = NULL;
   num_parents = 0;
 
-  ds6_nbr = nbr_table_head(ds6_neighbors);
+  ds6_nbr = uip_ds6_nbr_head();
   while(ds6_nbr != NULL) {
 
-    linkaddr_t *nbr_lladdr = nbr_table_get_lladdr(ds6_neighbors, ds6_nbr);
+    const linkaddr_t *nbr_lladdr = (const linkaddr_t *)uip_ds6_nbr_get_ll(ds6_nbr);
     rpl_nbr = rpl_neighbor_get_from_lladdr((uip_lladdr_t *)nbr_lladdr);
 
     if(rpl_nbr != NULL && rpl_neighbor_is_parent(rpl_nbr)) {
@@ -98,13 +97,13 @@ update_state(void)
       worst_rank_nbr_lladdr = nbr_lladdr;
     }
 
-    ds6_nbr = nbr_table_next(ds6_neighbors, ds6_nbr);
+    ds6_nbr = uip_ds6_nbr_next(ds6_nbr);
     num_used++;
   }
   /* how many more IP neighbors can be have? */
   num_free = NBR_TABLE_MAX_NEIGHBORS - num_used;
 
-  LOG_INFO("nbr-policy: free: %d, parents: %d\n", num_free, num_parents);
+  LOG_DBG("nbr-policy: free: %d, parents: %d\n", num_free, num_parents);
 }
 /*---------------------------------------------------------------------------*/
 static const linkaddr_t *
@@ -127,12 +126,12 @@ find_removable_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   /* Add the new neighbor only if it is better than the current worst. */
   if(dio->rank + curr_instance.min_hoprankinc < worst_rank - curr_instance.min_hoprankinc / 2) {
     /* Found *great* neighbor - add! */
-    LOG_INFO("nbr-policy: DIO rank %u, worse_rank %u -- add to cache\n",
+    LOG_DBG("nbr-policy: DIO rank %u, worst_rank %u -- add to cache\n",
            dio->rank, worst_rank);
     return worst_rank_nbr_lladdr;
   }
 
-  LOG_INFO("nbr-policy: DIO rank %u, worse_rank %u -- do not add to cache\n",
+  LOG_DBG("nbr-policy: DIO rank %u, worst_rank %u -- do not add to cache\n",
          dio->rank, worst_rank);
   return NULL;
 }

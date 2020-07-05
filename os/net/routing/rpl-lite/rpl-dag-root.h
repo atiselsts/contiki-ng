@@ -45,7 +45,7 @@
 /**
  * Set a prefix in case the node is later set as dag root.
  *
- * \param prefix The prefix. If NULL, UIP_DS6_DEFAULT_PREFIX is used instead
+ * \param prefix The prefix. If NULL, uip_ds6_default_prefix() is used instead
  * \param iid The IID. If NULL, it will be built from uip_ds6_set_addr_iid.
 */
 void rpl_dag_root_set_prefix(uip_ipaddr_t *prefix, uip_ipaddr_t *iid);
@@ -63,6 +63,12 @@ int rpl_dag_root_start(void);
  * \return 1 if we are dag root, 0 otherwise
 */
 int rpl_dag_root_is_root(void);
+/**
+ * Prints a summary of all routing links
+ *
+ * \param str A descriptive text on the caller
+*/
+void rpl_dag_root_print_links(const char *str);
 
  /** @} */
 

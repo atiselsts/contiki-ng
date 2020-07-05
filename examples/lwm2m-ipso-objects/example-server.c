@@ -172,6 +172,12 @@ client_chunk_handler(coap_message_t *response)
 {
   const uint8_t *chunk;
   unsigned int format;
+
+  if(response == NULL) {
+    PRINTF("\nRequest timed out\n");
+    return;
+  }
+
   int len = coap_get_payload(response, &chunk);
   coap_get_header_content_format(response, &format);
 
@@ -287,9 +293,6 @@ PROCESS_THREAD(router_process, ev, data)
   static struct etimer timer;
 
   PROCESS_BEGIN();
-
-  /* receives all CoAP messages */
-  coap_engine_init();
 
   /* Initialize DAG root */
   NETSTACK_ROUTING.root_start();

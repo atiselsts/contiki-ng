@@ -45,15 +45,25 @@
 #include "contiki.h"
 #include "shell.h"
 #include "shell-commands.h"
+#include "lib/list.h"
 #include "sys/log.h"
 #include "dev/watchdog.h"
 #include "net/ipv6/uip.h"
 #include "net/ipv6/uiplib.h"
 #include "net/ipv6/uip-icmp6.h"
 #include "net/ipv6/uip-ds6.h"
+#if BUILD_WITH_RESOLV
+#include "resolv.h"
+#endif /* BUILD_WITH_RESOLV */
+#if BUILD_WITH_HTTP_SOCKET
+#include "http-socket.h"
+#endif /* BUILD_WITH_HTTP_SOCKET */
 #if MAC_CONF_WITH_TSCH
 #include "net/mac/tsch/tsch.h"
 #endif /* MAC_CONF_WITH_TSCH */
+#if MAC_CONF_WITH_CSMA
+#include "net/mac/csma/csma.h"
+#endif
 #include "net/routing/routing.h"
 #include "net/mac/llsec802154.h"
 
@@ -68,15 +78,19 @@
 
 #define PING_TIMEOUT (5 * CLOCK_SECOND)
 
+#if NETSTACK_CONF_WITH_IPV6
 static struct uip_icmp6_echo_reply_notification echo_reply_notification;
 static shell_output_func *curr_ping_output_func = NULL;
 static struct process *curr_ping_process;
 static uint8_t curr_ping_ttl;
 static uint16_t curr_ping_datalen;
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 #if TSCH_WITH_SIXTOP
 static shell_command_6top_sub_cmd_t sixtop_sub_cmd = NULL;
 #endif /* TSCH_WITH_SIXTOP */
-
+static struct shell_command_set_t builtin_shell_command_set;
+LIST(shell_command_sets);
+#if NETSTACK_CONF_WITH_IPV6
 /*---------------------------------------------------------------------------*/
 static const char *
 ds6_nbr_state_to_str(uint8_t state)
@@ -96,103 +110,6 @@ ds6_nbr_state_to_str(uint8_t state)
       return "Unknown";
   }
 }
-#if ROUTING_CONF_RPL_LITE
-/*---------------------------------------------------------------------------*/
-static const char *
-rpl_state_to_str(enum rpl_dag_state state)
-{
-  switch(state) {
-    case DAG_INITIALIZED:
-      return "Initialized";
-    case DAG_JOINED:
-      return "Joined";
-    case DAG_REACHABLE:
-      return "Reachable";
-    case DAG_POISONING:
-      return "Poisoning";
-    default:
-      return "Unknown";
-  }
-}
-/*---------------------------------------------------------------------------*/
-static const char *
-rpl_mop_to_str(int mop)
-{
-  switch(mop) {
-    case RPL_MOP_NO_DOWNWARD_ROUTES:
-      return "No downward routes";
-    case RPL_MOP_NON_STORING:
-      return "Non-storing";
-    case RPL_MOP_STORING_NO_MULTICAST:
-      return "Storing";
-    case RPL_MOP_STORING_MULTICAST:
-      return "Storing+multicast";
-    default:
-      return "Unknown";
-  }
-}
-/*---------------------------------------------------------------------------*/
-static const char *
-rpl_ocp_to_str(int ocp)
-{
-  switch(ocp) {
-    case RPL_OCP_OF0:
-      return "OF0";
-    case RPL_OCP_MRHOF:
-      return "MRHOF";
-    default:
-      return "Unknown";
-  }
-}
-/*---------------------------------------------------------------------------*/
-static
-PT_THREAD(cmd_rpl_status(struct pt *pt, shell_output_func output, char *args))
-{
-  PT_BEGIN(pt);
-
-  SHELL_OUTPUT(output, "RPL status:\n");
-  if(!curr_instance.used) {
-    SHELL_OUTPUT(output, "-- Instance: None\n");
-  } else {
-    SHELL_OUTPUT(output, "-- Instance: %u\n", curr_instance.instance_id);
-    if(NETSTACK_ROUTING.node_is_root()) {
-      SHELL_OUTPUT(output, "-- DAG root\n");
-    } else {
-      SHELL_OUTPUT(output, "-- DAG node\n");
-    }
-    SHELL_OUTPUT(output, "-- DAG: ");
-    shell_output_6addr(output, &curr_instance.dag.dag_id);
-    SHELL_OUTPUT(output, ", version %u\n", curr_instance.dag.version);
-    SHELL_OUTPUT(output, "-- Prefix: ");
-    shell_output_6addr(output, &curr_instance.dag.prefix_info.prefix);
-    SHELL_OUTPUT(output, "/%u\n", curr_instance.dag.prefix_info.length);
-    SHELL_OUTPUT(output, "-- MOP: %s\n", rpl_mop_to_str(curr_instance.mop));
-    SHELL_OUTPUT(output, "-- OF: %s\n", rpl_ocp_to_str(curr_instance.of->ocp));
-    SHELL_OUTPUT(output, "-- Hop rank increment: %u\n", curr_instance.min_hoprankinc);
-    SHELL_OUTPUT(output, "-- Default lifetime: %lu seconds\n", RPL_LIFETIME(curr_instance.default_lifetime));
-
-    SHELL_OUTPUT(output, "-- State: %s\n", rpl_state_to_str(curr_instance.dag.state));
-    SHELL_OUTPUT(output, "-- Preferred parent: ");
-    if(curr_instance.dag.preferred_parent) {
-      shell_output_6addr(output, rpl_neighbor_get_ipaddr(curr_instance.dag.preferred_parent));
-      SHELL_OUTPUT(output, " (last DTSN: %u)\n", curr_instance.dag.preferred_parent->dtsn);
-    } else {
-      SHELL_OUTPUT(output, "None\n");
-    }
-    SHELL_OUTPUT(output, "-- Rank: %u\n", curr_instance.dag.rank);
-    SHELL_OUTPUT(output, "-- Lowest rank: %u (%u)\n", curr_instance.dag.lowest_rank, curr_instance.max_rankinc);
-    SHELL_OUTPUT(output, "-- DTSN out: %u\n", curr_instance.dtsn_out);
-    SHELL_OUTPUT(output, "-- DAO sequence: last sent %u, last acked %u\n",
-        curr_instance.dag.dao_last_seqno, curr_instance.dag.dao_last_acked_seqno);
-    SHELL_OUTPUT(output, "-- Trickle timer: current %u, min %u, max %u, redundancy %u\n",
-      curr_instance.dag.dio_intcurrent, curr_instance.dio_intmin,
-      curr_instance.dio_intmin + curr_instance.dio_intdoubl, curr_instance.dio_redundancy);
-
-  }
-
-  PT_END(pt);
-}
-#endif /* ROUTING_CONF_RPL_LITE */
 /*---------------------------------------------------------------------------*/
 static void
 echo_reply_handler(uip_ipaddr_t *source, uint8_t ttl, uint8_t *data, uint16_t datalen)
@@ -249,6 +166,137 @@ PT_THREAD(cmd_ping(struct pt *pt, shell_output_func output, char *args))
 
   PT_END(pt);
 }
+#endif /* NETSTACK_CONF_WITH_IPV6 */
+
+#if ROUTING_CONF_RPL_LITE
+/*---------------------------------------------------------------------------*/
+static const char *
+rpl_state_to_str(enum rpl_dag_state state)
+{
+  switch(state) {
+    case DAG_INITIALIZED:
+      return "Initialized";
+    case DAG_JOINED:
+      return "Joined";
+    case DAG_REACHABLE:
+      return "Reachable";
+    case DAG_POISONING:
+      return "Poisoning";
+    default:
+      return "Unknown";
+  }
+}
+/*---------------------------------------------------------------------------*/
+static const char *
+rpl_mop_to_str(int mop)
+{
+  switch(mop) {
+    case RPL_MOP_NO_DOWNWARD_ROUTES:
+      return "No downward routes";
+    case RPL_MOP_NON_STORING:
+      return "Non-storing";
+    case RPL_MOP_STORING_NO_MULTICAST:
+      return "Storing";
+    case RPL_MOP_STORING_MULTICAST:
+      return "Storing+multicast";
+    default:
+      return "Unknown";
+  }
+}
+/*---------------------------------------------------------------------------*/
+static const char *
+rpl_ocp_to_str(int ocp)
+{
+  switch(ocp) {
+    case RPL_OCP_OF0:
+      return "OF0";
+    case RPL_OCP_MRHOF:
+      return "MRHOF";
+    default:
+      return "Unknown";
+  }
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_rpl_nbr(struct pt *pt, shell_output_func output, char *args))
+{
+  PT_BEGIN(pt);
+
+  if(!curr_instance.used || rpl_neighbor_count() == 0) {
+    SHELL_OUTPUT(output, "RPL neighbors: none\n");
+  } else {
+    rpl_nbr_t *nbr = nbr_table_head(rpl_neighbors);
+    SHELL_OUTPUT(output, "RPL neighbors:\n");
+    while(nbr != NULL) {
+      char buf[120];
+      rpl_neighbor_snprint(buf, sizeof(buf), nbr);
+      SHELL_OUTPUT(output, "%s\n", buf);
+      nbr = nbr_table_next(rpl_neighbors, nbr);
+    }
+  }
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_rpl_status(struct pt *pt, shell_output_func output, char *args))
+{
+  PT_BEGIN(pt);
+
+  SHELL_OUTPUT(output, "RPL status:\n");
+  if(!curr_instance.used) {
+    SHELL_OUTPUT(output, "-- Instance: None\n");
+  } else {
+    SHELL_OUTPUT(output, "-- Instance: %u\n", curr_instance.instance_id);
+    if(NETSTACK_ROUTING.node_is_root()) {
+      SHELL_OUTPUT(output, "-- DAG root\n");
+    } else {
+      SHELL_OUTPUT(output, "-- DAG node\n");
+    }
+    SHELL_OUTPUT(output, "-- DAG: ");
+    shell_output_6addr(output, &curr_instance.dag.dag_id);
+    SHELL_OUTPUT(output, ", version %u\n", curr_instance.dag.version);
+    SHELL_OUTPUT(output, "-- Prefix: ");
+    shell_output_6addr(output, &curr_instance.dag.prefix_info.prefix);
+    SHELL_OUTPUT(output, "/%u\n", curr_instance.dag.prefix_info.length);
+    SHELL_OUTPUT(output, "-- MOP: %s\n", rpl_mop_to_str(curr_instance.mop));
+    SHELL_OUTPUT(output, "-- OF: %s\n", rpl_ocp_to_str(curr_instance.of->ocp));
+    SHELL_OUTPUT(output, "-- Hop rank increment: %u\n", curr_instance.min_hoprankinc);
+    SHELL_OUTPUT(output, "-- Default lifetime: %lu seconds\n", RPL_LIFETIME(curr_instance.default_lifetime));
+
+    SHELL_OUTPUT(output, "-- State: %s\n", rpl_state_to_str(curr_instance.dag.state));
+    SHELL_OUTPUT(output, "-- Preferred parent: ");
+    if(curr_instance.dag.preferred_parent) {
+      shell_output_6addr(output, rpl_neighbor_get_ipaddr(curr_instance.dag.preferred_parent));
+      SHELL_OUTPUT(output, " (last DTSN: %u)\n", curr_instance.dag.preferred_parent->dtsn);
+    } else {
+      SHELL_OUTPUT(output, "None\n");
+    }
+    SHELL_OUTPUT(output, "-- Rank: %u\n", curr_instance.dag.rank);
+    SHELL_OUTPUT(output, "-- Lowest rank: %u (%u)\n", curr_instance.dag.lowest_rank, curr_instance.max_rankinc);
+    SHELL_OUTPUT(output, "-- DTSN out: %u\n", curr_instance.dtsn_out);
+    SHELL_OUTPUT(output, "-- DAO sequence: last sent %u, last acked %u\n",
+        curr_instance.dag.dao_last_seqno, curr_instance.dag.dao_last_acked_seqno);
+    SHELL_OUTPUT(output, "-- Trickle timer: current %u, min %u, max %u, redundancy %u\n",
+      curr_instance.dag.dio_intcurrent, curr_instance.dio_intmin,
+      curr_instance.dio_intmin + curr_instance.dio_intdoubl, curr_instance.dio_redundancy);
+
+  }
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_rpl_refresh_routes(struct pt *pt, shell_output_func output, char *args))
+{
+  PT_BEGIN(pt);
+
+  SHELL_OUTPUT(output, "Triggering routes refresh\n");
+  rpl_refresh_routes("Shell");
+
+  PT_END(pt);
+}
+#endif /* ROUTING_CONF_RPL_LITE */
 /*---------------------------------------------------------------------------*/
 static void
 shell_output_log_levels(shell_output_func output)
@@ -324,15 +372,16 @@ PT_THREAD(cmd_log(struct pt *pt, shell_output_func output, char *args))
 static
 PT_THREAD(cmd_help(struct pt *pt, shell_output_func output, char *args))
 {
-  struct shell_command_t *cmd_ptr;
-
+  struct shell_command_set_t *set;
+  const struct shell_command_t *cmd;
   PT_BEGIN(pt);
 
   SHELL_OUTPUT(output, "Available commands:\n");
-  cmd_ptr = shell_commands;
-  while(cmd_ptr->name != NULL) {
-    SHELL_OUTPUT(output, "%s\n", cmd_ptr->help);
-    cmd_ptr++;
+  /* Note: we explicitly don't expend any code space to deal with shadowing */
+  for(set = list_head(shell_command_sets); set != NULL; set = list_item_next(set)) {
+    for(cmd = set->commands; cmd->name != NULL; ++cmd) {
+      SHELL_OUTPUT(output, "%s\n", cmd->help);
+    }
   }
 
   PT_END(pt);
@@ -370,7 +419,8 @@ PT_THREAD(cmd_rpl_set_root(struct pt *pt, shell_output_func output, char *args))
       PT_EXIT(pt);
     }
   } else {
-    uip_ip6addr(&prefix, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+    const uip_ipaddr_t *default_prefix = uip_ds6_default_prefix();
+    uip_ip6addr_copy(&prefix, default_prefix);
   }
 
   if(is_on) {
@@ -400,7 +450,7 @@ PT_THREAD(cmd_rpl_global_repair(struct pt *pt, shell_output_func output, char *a
 {
   PT_BEGIN(pt);
 
-  SHELL_OUTPUT(output, "Triggering routing global repair\n")
+  SHELL_OUTPUT(output, "Triggering routing global repair\n");
   NETSTACK_ROUTING.global_repair("Shell");
 
   PT_END(pt);
@@ -416,20 +466,20 @@ PT_THREAD(cmd_rpl_local_repair(struct pt *pt, shell_output_func output, char *ar
 
   PT_END(pt);
 }
+#endif /* UIP_CONF_IPV6_RPL */
 /*---------------------------------------------------------------------------*/
-#if ROUTING_CONF_RPL_LITE
 static
-PT_THREAD(cmd_rpl_refresh_routes(struct pt *pt, shell_output_func output, char *args))
+PT_THREAD(cmd_macaddr(struct pt *pt, shell_output_func output, char *args))
 {
   PT_BEGIN(pt);
 
-  SHELL_OUTPUT(output, "Triggering routes refresh\n")
-  rpl_refresh_routes("Shell");
+  SHELL_OUTPUT(output, "Node MAC address: ");
+  shell_output_lladdr(output, &linkaddr_node_addr);
+  SHELL_OUTPUT(output, "\n");
 
   PT_END(pt);
 }
-#endif /* ROUTING_CONF_RPL_LITE */
-#endif /* UIP_CONF_IPV6_RPL */
+#if NETSTACK_CONF_WITH_IPV6
 /*---------------------------------------------------------------------------*/
 static
 PT_THREAD(cmd_ipaddr(struct pt *pt, shell_output_func output, char *args))
@@ -451,7 +501,6 @@ PT_THREAD(cmd_ipaddr(struct pt *pt, shell_output_func output, char *args))
   }
 
   PT_END(pt);
-
 }
 /*---------------------------------------------------------------------------*/
 static
@@ -482,6 +531,7 @@ PT_THREAD(cmd_ip_neighbors(struct pt *pt, shell_output_func output, char *args))
   PT_END(pt);
 
 }
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 #if MAC_CONF_WITH_TSCH
 /*---------------------------------------------------------------------------*/
 static
@@ -552,18 +602,23 @@ PT_THREAD(cmd_tsch_status(struct pt *pt, shell_output_func output, char *args))
     SHELL_OUTPUT(output, "-- Join priority: %u\n", tsch_join_priority);
     SHELL_OUTPUT(output, "-- Time source: ");
     if(n != NULL) {
-      shell_output_lladdr(output, &n->addr);
+      shell_output_lladdr(output, tsch_queue_get_nbr_address(n));
       SHELL_OUTPUT(output, "\n");
     } else {
       SHELL_OUTPUT(output, "none\n");
     }
-    SHELL_OUTPUT(output, "-- Last synchronized: %lu seconds ago\n", (clock_time() - last_sync_time) / CLOCK_SECOND);
-    SHELL_OUTPUT(output, "-- Drift w.r.t. coordinator: %ld ppm\n", tsch_adaptive_timesync_get_drift_ppm());
+    SHELL_OUTPUT(output, "-- Last synchronized: %lu seconds ago\n",
+                 (clock_time() - tsch_last_sync_time) / CLOCK_SECOND);
+    SHELL_OUTPUT(output, "-- Drift w.r.t. coordinator: %ld ppm\n",
+                 tsch_adaptive_timesync_get_drift_ppm());
+    SHELL_OUTPUT(output, "-- Network uptime: %lu seconds\n",
+                 (unsigned long)(tsch_get_network_uptime_ticks() / CLOCK_SECOND));
   }
 
   PT_END(pt);
 }
 #endif /* MAC_CONF_WITH_TSCH */
+#if NETSTACK_CONF_WITH_IPV6
 /*---------------------------------------------------------------------------*/
 static
 PT_THREAD(cmd_routes(struct pt *pt, shell_output_func output, char *args))
@@ -594,24 +649,9 @@ PT_THREAD(cmd_routes(struct pt *pt, shell_output_func output, char *args))
     SHELL_OUTPUT(output, "Routing links (%u in total):\n", uip_sr_num_nodes());
     link = uip_sr_node_head();
     while(link != NULL) {
-      uip_ipaddr_t child_ipaddr;
-      uip_ipaddr_t parent_ipaddr;
-      NETSTACK_ROUTING.get_sr_node_ipaddr(&child_ipaddr, link);
-      NETSTACK_ROUTING.get_sr_node_ipaddr(&parent_ipaddr, link->parent);
-      SHELL_OUTPUT(output, "-- ");
-      shell_output_6addr(output, &child_ipaddr);
-      if(link->parent == NULL) {
-        memset(&parent_ipaddr, 0, sizeof(parent_ipaddr));
-        SHELL_OUTPUT(output, " (DODAG root)");
-      } else {
-        SHELL_OUTPUT(output, " to ");
-        shell_output_6addr(output, &parent_ipaddr);
-      }
-      if(link->lifetime != UIP_SR_INFINITE_LIFETIME) {
-        SHELL_OUTPUT(output, " (lifetime: %lu seconds)\n", (unsigned long)link->lifetime);
-      } else {
-        SHELL_OUTPUT(output, " (lifetime: infinite)\n");
-      }
+      char buf[100];
+      uip_sr_link_snprint(buf, sizeof(buf), link);
+      SHELL_OUTPUT(output, "-- %s\n", buf);
       link = uip_sr_node_next(link);
     }
   } else {
@@ -644,6 +684,109 @@ PT_THREAD(cmd_routes(struct pt *pt, shell_output_func output, char *args))
 
   PT_END(pt);
 }
+/*---------------------------------------------------------------------------*/
+#if BUILD_WITH_RESOLV
+static
+PT_THREAD(cmd_resolv(struct pt *pt, shell_output_func output, char *args))
+{
+  PT_BEGIN(pt);
+  static struct etimer timeout_timer;
+  static int count, ret;
+  char *next_args;
+  static uip_ipaddr_t *remote_addr = NULL;
+  SHELL_ARGS_INIT(args, next_args);
+
+  /* Get argument (remote hostname) */
+  SHELL_ARGS_NEXT(args, next_args);
+  if(args == NULL) {
+    SHELL_OUTPUT(output, "Destination host is not specified\n");
+    PT_EXIT(pt);
+  } else {
+    ret = resolv_lookup(args, &remote_addr);
+    if(ret == RESOLV_STATUS_UNCACHED || ret == RESOLV_STATUS_RESOLVING) {
+      SHELL_OUTPUT(output, "Looking up IPv6 address for host: %s\n", args);
+      if(ret != RESOLV_STATUS_RESOLVING) {
+        resolv_query(args);
+      }
+      /* Poll 10 times for resolve results (5 seconds max)*/
+      for(count = 0; count < 10; count++) {
+        etimer_set(&timeout_timer, CLOCK_SECOND / 2);
+        PT_WAIT_UNTIL(pt, etimer_expired(&timeout_timer));
+        printf("resoliving again...\n");
+        if((ret = resolv_lookup(args, &remote_addr)) != RESOLV_STATUS_RESOLVING) {
+          break;
+        }
+      }
+    }
+    if(ret == RESOLV_STATUS_NOT_FOUND) {
+      SHELL_OUTPUT(output, "Did not find IPv6 address for host: %s\n", args);
+    } else if(ret == RESOLV_STATUS_CACHED) {
+      SHELL_OUTPUT(output, "Found IPv6 address for host: %s => ", args);
+      shell_output_6addr(output, remote_addr);
+      SHELL_OUTPUT(output, "\n");
+    }
+  }
+  PT_END(pt);
+}
+#endif /* BUILD_WITH_RESOLV */
+/*---------------------------------------------------------------------------*/
+#if BUILD_WITH_HTTP_SOCKET
+static struct http_socket s;
+static int bytes_received = 0;
+
+static void
+http_callback(struct http_socket *s, void *ptr,
+         http_socket_event_t e,
+         const uint8_t *data, uint16_t datalen)
+{
+  if(e == HTTP_SOCKET_ERR) {
+    printf("HTTP socket error\n");
+  } else if(e == HTTP_SOCKET_TIMEDOUT) {
+    printf("HTTP socket error: timed out\n");
+  } else if(e == HTTP_SOCKET_ABORTED) {
+    printf("HTTP socket error: aborted\n");
+  } else if(e == HTTP_SOCKET_HOSTNAME_NOT_FOUND) {
+    printf("HTTP socket error: hostname not found\n");
+  } else if(e == HTTP_SOCKET_CLOSED) {
+    printf("HTTP socket closed, %d bytes received\n", bytes_received);
+  } else if(e == HTTP_SOCKET_DATA) {
+    int i;
+    if(bytes_received == 0) {
+      printf("HTTP socket received data, total expects:%d\n", (int) s->header.content_length);
+    }
+
+    bytes_received += datalen;
+    for(i = 0; i < datalen; i++) {
+      printf("%c", data[i]);
+    }
+  }
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_wget(struct pt *pt, shell_output_func output, char *args))
+{
+  PT_BEGIN(pt);
+  char *next_args;
+  SHELL_ARGS_INIT(args, next_args);
+
+  /* Get argument (remote hostname and url (http://host/url) */
+  SHELL_ARGS_NEXT(args, next_args);
+  if(args == NULL) {
+    SHELL_OUTPUT(output, "URL is not specified\n");
+    PT_EXIT(pt);
+  } else {
+    bytes_received = 0;
+    SHELL_OUTPUT(output, "Fetching web page at %s\n", args);
+    http_socket_init(&s);
+    http_socket_get(&s, args, 0, 0,
+                    http_callback, NULL);
+  }
+
+  PT_END(pt);
+}
+#endif /* BUILD_WITH_HTTP_SOCKET */
+/*---------------------------------------------------------------------------*/
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 /*---------------------------------------------------------------------------*/
 static
 PT_THREAD(cmd_reboot(struct pt *pt, shell_output_func output, char *args))
@@ -720,33 +863,146 @@ PT_THREAD(cmd_6top(struct pt *pt, shell_output_func output, char *args))
 }
 #endif /* TSCH_WITH_SIXTOP */
 /*---------------------------------------------------------------------------*/
+#if LLSEC802154_ENABLED
+static
+PT_THREAD(cmd_llsec_setlv(struct pt *pt, shell_output_func output, char *args))
+{
+
+  PT_BEGIN(pt);
+
+  if(args == NULL) {
+    SHELL_OUTPUT(output, "Default LLSEC level is %d\n",
+                 uipbuf_get_attr(UIPBUF_ATTR_LLSEC_LEVEL));
+    PT_EXIT(pt);
+  } else {
+    int lv = atoi(args);
+    if(lv < 0 || lv > 7) {
+      SHELL_OUTPUT(output, "Illegal LLSEC Level %d\n", lv);
+      PT_EXIT(pt);
+    } else {
+      uipbuf_set_default_attr(UIPBUF_ATTR_LLSEC_LEVEL, lv);
+      uipbuf_clear_attr();
+      SHELL_OUTPUT(output, "LLSEC default level set %d\n", lv);
+    }
+  }
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_llsec_setkey(struct pt *pt, shell_output_func output, char *args))
+{
+  char *next_args;
+
+  PT_BEGIN(pt);
+
+  SHELL_ARGS_INIT(args, next_args);
+
+  if(args == NULL) {
+    SHELL_OUTPUT(output, "Provide an index and a 16-char string for the key\n");
+    PT_EXIT(pt);
+  } else {
+    int key;
+    SHELL_ARGS_NEXT(args, next_args);
+    key = atoi(args);
+    if(key < 0) {
+      SHELL_OUTPUT(output, "Illegal LLSEC Key index %d\n", key);
+      PT_EXIT(pt);
+    } else {
+#if MAC_CONF_WITH_CSMA
+      /* Get next arg (key-string) */
+      SHELL_ARGS_NEXT(args, next_args);
+      if(args == NULL) {
+        SHELL_OUTPUT(output, "Provide both an index and a key\n");
+      } else if(strlen(args) == 16) {
+        csma_security_set_key(key, (const uint8_t *) args);
+        SHELL_OUTPUT(output, "Set key for index %d\n", key);
+      } else {
+        SHELL_OUTPUT(output, "Wrong length of key: '%s' (%d)\n", args, strlen(args));
+      }
+#else
+      SHELL_OUTPUT(output, "Set key not supported.\n");
+      PT_EXIT(pt);
+#endif
+    }
+  }
+  PT_END(pt);
+}
+#endif /* LLSEC802154_ENABLED */
+/*---------------------------------------------------------------------------*/
 void
 shell_commands_init(void)
 {
+  list_init(shell_command_sets);
+  list_add(shell_command_sets, &builtin_shell_command_set);
+#if NETSTACK_CONF_WITH_IPV6
   /* Set up Ping Reply callback */
   uip_icmp6_echo_reply_callback_add(&echo_reply_notification,
                                     echo_reply_handler);
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 }
 /*---------------------------------------------------------------------------*/
-struct shell_command_t shell_commands[] = {
+void
+shell_command_set_register(struct shell_command_set_t *set)
+{
+  list_push(shell_command_sets, set);
+}
+/*---------------------------------------------------------------------------*/
+int
+shell_command_set_deregister(struct shell_command_set_t *set)
+{
+  if(!list_contains(shell_command_sets, set)) {
+    return !0;
+  }
+  list_remove(shell_command_sets, set);
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+const struct shell_command_t *
+shell_command_lookup(const char *name)
+{
+  struct shell_command_set_t *set;
+  const struct shell_command_t *cmd;
+
+  for(set = list_head(shell_command_sets);
+      set != NULL;
+      set = list_item_next(set)) {
+    for(cmd = set->commands; cmd->name != NULL; ++cmd) {
+      if(!strcmp(cmd->name, name)) {
+        return cmd;
+      }
+    }
+  }
+  return NULL;
+}
+/*---------------------------------------------------------------------------*/
+const struct shell_command_t builtin_shell_commands[] = {
   { "help",                 cmd_help,                 "'> help': Shows this help" },
   { "reboot",               cmd_reboot,               "'> reboot': Reboot the board by watchdog_reboot()" },
+  { "log",                  cmd_log,                  "'> log module level': Sets log level (0--4) for a given module (or \"all\"). For module \"mac\", level 4 also enables per-slot logging." },
+  { "mac-addr",             cmd_macaddr,               "'> mac-addr': Shows the node's MAC address" },
+#if NETSTACK_CONF_WITH_IPV6
   { "ip-addr",              cmd_ipaddr,               "'> ip-addr': Shows all IPv6 addresses" },
   { "ip-nbr",               cmd_ip_neighbors,         "'> ip-nbr': Shows all IPv6 neighbors" },
-  { "log",                  cmd_log,                  "'> log module level': Sets log level (0--4) for a given module (or \"all\"). For module \"mac\", level 4 also enables per-slot logging." },
   { "ping",                 cmd_ping,                 "'> ping addr': Pings the IPv6 address 'addr'" },
+  { "routes",               cmd_routes,               "'> routes': Shows the route entries" },
+#if BUILD_WITH_RESOLV
+  { "nslookup",             cmd_resolv,               "'> nslookup': Lookup IPv6 address of host" },
+#endif /* BUILD_WITH_RESOLV */
+#if BUILD_WITH_HTTP_SOCKET
+  { "wget",                 cmd_wget,                 "'> wget url': get content of URL (only http)." },
+#endif /* BUILD_WITH_HTTP_SOCKET */
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 #if UIP_CONF_IPV6_RPL
   { "rpl-set-root",         cmd_rpl_set_root,         "'> rpl-set-root 0/1 [prefix]': Sets node as root (1) or not (0). A /64 prefix can be optionally specified." },
   { "rpl-local-repair",     cmd_rpl_local_repair,     "'> rpl-local-repair': Triggers a RPL local repair" },
 #if ROUTING_CONF_RPL_LITE
   { "rpl-refresh-routes",   cmd_rpl_refresh_routes,   "'> rpl-refresh-routes': Refreshes all routes through a DTSN increment" },
+  { "rpl-status",           cmd_rpl_status,           "'> rpl-status': Shows a summary of the current RPL state" },
+  { "rpl-nbr",              cmd_rpl_nbr,              "'> rpl-nbr': Shows the RPL neighbor table" },
 #endif /* ROUTING_CONF_RPL_LITE */
   { "rpl-global-repair",    cmd_rpl_global_repair,    "'> rpl-global-repair': Triggers a RPL global repair" },
 #endif /* UIP_CONF_IPV6_RPL */
-#if ROUTING_CONF_RPL_LITE
-  { "rpl-status",           cmd_rpl_status,           "'> rpl-status': Shows a summary of the current RPL state" },
-#endif /* ROUTING_CONF_RPL_LITE */
-  { "routes",               cmd_routes,               "'> routes': Shows the route entries" },
 #if MAC_CONF_WITH_TSCH
   { "tsch-set-coordinator", cmd_tsch_set_coordinator, "'> tsch-set-coordinator 0/1 [0/1]': Sets node as coordinator (1) or not (0). Second, optional parameter: enable (1) or disable (0) security." },
   { "tsch-schedule",        cmd_tsch_schedule,        "'> tsch-schedule': Shows the current TSCH schedule" },
@@ -755,7 +1011,15 @@ struct shell_command_t shell_commands[] = {
 #if TSCH_WITH_SIXTOP
   { "6top",                 cmd_6top,                 "'> 6top help': Shows 6top command usage" },
 #endif /* TSCH_WITH_SIXTOP */
+#if LLSEC802154_ENABLED
+  { "llsec-set-level", cmd_llsec_setlv, "'> llsec-set-level <lv>': Set the level of link layer security (show if no lv argument)"},
+  { "llsec-set-key", cmd_llsec_setkey, "'> llsec-set-key <id> <key>': Set the key of link layer security"},
+#endif /* LLSEC802154_ENABLED */
   { NULL, NULL, NULL },
 };
 
+static struct shell_command_set_t builtin_shell_command_set = {
+  .next = NULL,
+  .commands = builtin_shell_commands,
+};
 /** @} */

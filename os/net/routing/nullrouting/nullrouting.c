@@ -30,7 +30,7 @@
  */
 
 /**
- * \addtogroup null-routing
+ * \addtogroup routing
  * @{
  *
  * \file
@@ -103,10 +103,14 @@ local_repair(const char *str)
 {
 }
 /*---------------------------------------------------------------------------*/
-static void
+static bool
 ext_header_remove(void)
 {
-  uip_ext_len = 0;
+#if NETSTACK_CONF_WITH_IPV6
+  return uip_remove_ext_hdr();
+#else
+  return true;
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -116,7 +120,7 @@ ext_header_update(void)
 }
 /*---------------------------------------------------------------------------*/
 static int
-ext_header_hbh_update(int uip_ext_opt_offset)
+ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
 {
   return 1;
 }
@@ -148,6 +152,12 @@ drop_route(uip_ds6_route_t *route)
 {
 }
 /*---------------------------------------------------------------------------*/
+static uint8_t
+is_in_leaf_mode(void)
+{
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
 const struct routing_driver nullrouting_driver = {
   "nullrouting",
   init,
@@ -169,6 +179,7 @@ const struct routing_driver nullrouting_driver = {
   link_callback,
   neighbor_state_changed,
   drop_route,
+  is_in_leaf_mode,
 };
 /*---------------------------------------------------------------------------*/
 

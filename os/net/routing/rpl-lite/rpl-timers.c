@@ -71,8 +71,9 @@ clock_time_t RPL_PROBING_DELAY_FUNC(void);
 static void handle_dis_timer(void *ptr);
 static void handle_dio_timer(void *ptr);
 static void handle_unicast_dio_timer(void *ptr);
-static void handle_dao_timer(void *ptr);
+static void send_new_dao(void *ptr);
 #if RPL_WITH_DAO_ACK
+static void resend_dao(void *ptr);
 static void handle_dao_ack_timer(void *ptr);
 #endif /* RPL_WITH_DAO_ACK */
 #if RPL_WITH_PROBING
@@ -148,13 +149,19 @@ new_dio_interval(void)
 void
 rpl_timers_dio_reset(const char *str)
 {
-  if(rpl_dag_ready_to_advertise()) {
+  if(rpl_dag_ready_to_advertise() &&
+     (curr_instance.dag.dio_intcurrent == 0 ||
+      curr_instance.dag.dio_intcurrent > curr_instance.dio_intmin)) {
+    /*
+     * don't reset the DIO timer if the current interval is Imin; see
+     * Section 4.2, RFC 6206.
+     */
     LOG_INFO("reset DIO timer (%s)\n", str);
-#if !RPL_LEAF_ONLY
-    curr_instance.dag.dio_counter = 0;
-    curr_instance.dag.dio_intcurrent = curr_instance.dio_intmin;
-    new_dio_interval();
-#endif /* RPL_LEAF_ONLY */
+    if(!rpl_get_leaf_only()) {
+        curr_instance.dag.dio_counter = 0;
+        curr_instance.dag.dio_intcurrent = curr_instance.dio_intmin;
+        new_dio_interval();
+    }
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -224,7 +231,7 @@ static void
 schedule_dao_retransmission(void)
 {
   clock_time_t expiration_time = RPL_DAO_RETRANSMISSION_TIMEOUT / 2 + (random_rand() % (RPL_DAO_RETRANSMISSION_TIMEOUT));
-  ctimer_set(&curr_instance.dag.dao_timer, expiration_time, handle_dao_timer, NULL);
+  ctimer_set(&curr_instance.dag.dao_timer, expiration_time, resend_dao, NULL);
 }
 #endif /* RPL_WITH_DAO_ACK */
 /*---------------------------------------------------------------------------*/
@@ -247,9 +254,8 @@ schedule_dao_refresh(void)
       target_refresh -= safety_margin;
     }
 
-    /* Increment next sequno */
-    RPL_LOLLIPOP_INCREMENT(curr_instance.dag.dao_curr_seqno);
-    ctimer_set(&curr_instance.dag.dao_timer, target_refresh, handle_dao_timer, NULL);
+    /* Schedule transmission */
+    ctimer_set(&curr_instance.dag.dao_timer, target_refresh, send_new_dao, NULL);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -261,36 +267,16 @@ rpl_timers_schedule_dao(void)
     * only serves storing mode. Use simple delay instead, with the only purpose
     * to reduce congestion. */
     clock_time_t expiration_time = RPL_DAO_DELAY / 2 + (random_rand() % (RPL_DAO_DELAY));
-    /* Increment next seqno */
-    RPL_LOLLIPOP_INCREMENT(curr_instance.dag.dao_curr_seqno);
-    ctimer_set(&curr_instance.dag.dao_timer, expiration_time, handle_dao_timer, NULL);
+    ctimer_set(&curr_instance.dag.dao_timer, expiration_time, send_new_dao, NULL);
   }
 }
 /*---------------------------------------------------------------------------*/
 static void
-handle_dao_timer(void *ptr)
+send_new_dao(void *ptr)
 {
 #if RPL_WITH_DAO_ACK
-  if(rpl_lollipop_greater_than(curr_instance.dag.dao_curr_seqno,
-    curr_instance.dag.dao_last_seqno)) {
-    /* We are sending a new DAO here. Prepare retransmissions */
-    curr_instance.dag.dao_transmissions = 0;
-  } else {
-    /* We are called for the same DAO again */
-    if(curr_instance.dag.dao_last_acked_seqno == curr_instance.dag.dao_last_seqno) {
-      /* The last seqno sent is ACKed! Schedule refresh to avoid route expiration */
-      schedule_dao_refresh();
-      return;
-    }
-    /* We need to re-send the last DAO */
-    if(curr_instance.dag.dao_transmissions >= RPL_DAO_MAX_RETRANSMISSIONS) {
-      /* No more retransmissions. Perform local repair and hope to find another . */
-      rpl_local_repair("DAO max rtx");
-      return;
-    }
-  }
-  /* Increment transmission counter before sending */
-  curr_instance.dag.dao_transmissions++;
+  /* We are sending a new DAO here. Prepare retransmissions */
+  curr_instance.dag.dao_transmissions = 1;
   /* Schedule next retransmission */
   schedule_dao_retransmission();
 #else /* RPL_WITH_DAO_ACK */
@@ -299,19 +285,14 @@ handle_dao_timer(void *ptr)
     curr_instance.dag.state = DAG_REACHABLE;
   }
   rpl_timers_dio_reset("Reachable");
-#endif /* !RPL_WITH_DAO_ACK */
-
-  curr_instance.dag.dao_last_seqno = curr_instance.dag.dao_curr_seqno;
-  /* Send a DAO with own prefix as target and default lifetime */
-  rpl_icmp6_dao_output(curr_instance.default_lifetime);
-
-#if !RPL_WITH_DAO_ACK
-  /* There is no DAO-ACK, schedule a refresh. Must be done after rpl_icmp6_dao_output,
-  because we increment curr_instance.dag.dao_curr_seqno for the next DAO (refresh).
-  Where there is DAO-ACK, the refresh is scheduled after reception of the ACK.
-  Happens when handle_dao_timer is called again next. */
+  /* There is no DAO-ACK, schedule a refresh. */
   schedule_dao_refresh();
 #endif /* !RPL_WITH_DAO_ACK */
+
+  /* Increment seqno */
+  RPL_LOLLIPOP_INCREMENT(curr_instance.dag.dao_last_seqno);
+  /* Send a DAO with own prefix as target and default lifetime */
+  rpl_icmp6_dao_output(curr_instance.default_lifetime);
 }
 #if RPL_WITH_DAO_ACK
 /*---------------------------------------------------------------------------*/
@@ -334,6 +315,32 @@ handle_dao_ack_timer(void *ptr)
   rpl_icmp6_dao_ack_output(&curr_instance.dag.dao_ack_target,
     curr_instance.dag.dao_ack_sequence, RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
 }
+/*---------------------------------------------------------------------------*/
+void
+rpl_timers_notify_dao_ack(void)
+{
+  /* The last DAO was ACKed. Schedule refresh to avoid route expiration. This
+  implicitly de-schedules resend_dao, as both share curr_instance.dag.dao_timer */
+  schedule_dao_refresh();
+}
+/*---------------------------------------------------------------------------*/
+static void
+resend_dao(void *ptr)
+{
+  /* Increment transmission counter before sending */
+  curr_instance.dag.dao_transmissions++;
+  /* Send a DAO with own prefix as target and default lifetime */
+  rpl_icmp6_dao_output(curr_instance.default_lifetime);
+
+  /* Schedule next retransmission, or abort */
+  if(curr_instance.dag.dao_transmissions < RPL_DAO_MAX_RETRANSMISSIONS) {
+    schedule_dao_retransmission();
+  } else {
+    /* No more retransmissions. Perform local repair. */
+    rpl_local_repair("DAO max rtx");
+    return;
+  }
+}
 #endif /* RPL_WITH_DAO_ACK */
 /*---------------------------------------------------------------------------*/
 /*------------------------------- Probing----------------------------------- */
@@ -342,13 +349,7 @@ handle_dao_ack_timer(void *ptr)
 clock_time_t
 get_probing_delay(void)
 {
-  if(curr_instance.used && curr_instance.dag.urgent_probing_target != NULL) {
-    /* Urgent probing needed (to find out if a neighbor may become preferred parent) */
-    return random_rand() % (CLOCK_SECOND * 4);
-  } else {
-    /* Else, use normal probing interval */
-    return ((RPL_PROBING_INTERVAL) / 2) + random_rand() % (RPL_PROBING_INTERVAL);
-  }
+  return ((RPL_PROBING_INTERVAL) / 2) + random_rand() % (RPL_PROBING_INTERVAL);
 }
 /*---------------------------------------------------------------------------*/
 rpl_nbr_t *
@@ -440,7 +441,7 @@ handle_probing_timer(void *ptr)
         );
     /* Send probe, e.g. unicast DIO or DIS */
     RPL_PROBING_SEND_FUNC(target_ipaddr);
-    curr_instance.dag.urgent_probing_target = NULL;
+    /* urgent_probing_target will be NULLed in the packet_sent callback */
   } else {
     LOG_INFO("no neighbor needs probing\n");
   }
@@ -455,6 +456,15 @@ rpl_schedule_probing(void)
   if(curr_instance.used) {
     ctimer_set(&curr_instance.dag.probing_timer, RPL_PROBING_DELAY_FUNC(),
                   handle_probing_timer, NULL);
+  }
+}
+/*---------------------------------------------------------------------------*/
+void
+rpl_schedule_probing_now(void)
+{
+  if(curr_instance.used) {
+    ctimer_set(&curr_instance.dag.probing_timer,
+      random_rand() % (CLOCK_SECOND * 4), handle_probing_timer, NULL);
   }
 }
 #endif /* RPL_WITH_PROBING */
@@ -518,6 +528,7 @@ handle_periodic_timer(void *ptr)
 
   if(LOG_INFO_ENABLED) {
     rpl_neighbor_print_list("Periodic");
+    rpl_dag_root_print_links("Periodic");
   }
 
   ctimer_reset(&periodic_timer);

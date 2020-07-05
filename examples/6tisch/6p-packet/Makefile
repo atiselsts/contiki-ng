@@ -1,14 +1,15 @@
 CONTIKI_PROJECT      = sixp-node
 PROJECT_SOURCEFILES += test-sf.c
 
-PLATFORMS_EXCLUDE = sky nrf52dk native
-BOARDS_EXCLUDE = srf06/cc13xx launchpad/cc1310 launchpad/cc1350 sensortag/cc2650 sensortag/cc1350
+PLATFORMS_EXCLUDE = sky z1 nrf52dk native
 
 CONTIKI  = ../../../
 
 MAKE_MAC = MAKE_MAC_TSCH
 MAKE_ROUTING = MAKE_ROUTING_NULLROUTING
-MODULES += os/net/mac/tsch/sixtop
+
+include $(CONTIKI)/Makefile.dir-variables
+MODULES += $(CONTIKI_NG_MAC_DIR)/tsch/sixtop
 
 all: $(CONTIKI_PROJECT)
 include $(CONTIKI)/Makefile.include

@@ -97,14 +97,11 @@ PROCESS_THREAD(er_example_server, ev, data)
   PRINTF("Starting Erbium Example Server\n");
 
   PRINTF("uIP buffer: %u\n", UIP_BUFSIZE);
-  PRINTF("LL header: %u\n", UIP_LLH_LEN);
   PRINTF("IP+UDP header: %u\n", UIP_IPUDPH_LEN);
   PRINTF("REST max chunk: %u\n", COAP_MAX_CHUNK_SIZE);
 
   print_local_addresses();
 
-  /* Initialize the REST engine. */
-  coap_engine_init();
   coap_activate_resource(&res_led3, "lights/led3");
 
   SENSORS_ACTIVATE(button_1);

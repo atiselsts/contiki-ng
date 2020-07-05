@@ -80,6 +80,7 @@
 typedef enum {
   SPI_DEV_STATUS_OK,              /* Everything OK */
   SPI_DEV_STATUS_EINVAL,          /* Erroneous input value */
+  SPI_DEV_STATUS_TRANSFER_ERR,    /* Error during SPI transfer */
   SPI_DEV_STATUS_BUS_LOCKED,      /* SPI bus is already locked */
   SPI_DEV_STATUS_BUS_NOT_OWNED,   /* SPI bus is locked by someone else */
   SPI_DEV_STATUS_CLOSED           /* SPI bus has not opened properly */
@@ -91,10 +92,18 @@ typedef enum {
  *
  * This is a structure to an architecture-independent SPI configuration.
  *
+ * \note Do not access the port_spi_foo members directly. Access them by using
+ * the SPI_DEVICE_PORT() macro instead
  * @{
  */
 
 typedef struct spi_device {
+#if GPIO_HAL_PORT_PIN_NUMBERING
+  gpio_hal_port_t port_spi_sck;       /* SPI SCK port */
+  gpio_hal_port_t port_spi_miso;      /* SPI MISO port */
+  gpio_hal_port_t port_spi_mosi;      /* SPI MOSI port */
+  gpio_hal_port_t port_spi_cs;        /* SPI Chip Select port */
+#endif
   gpio_hal_pin_t pin_spi_sck;       /* SPI SCK pin */
   gpio_hal_pin_t pin_spi_miso;      /* SPI MISO  pin */
   gpio_hal_pin_t pin_spi_mosi;      /* SPI MOSI pin */
@@ -106,6 +115,22 @@ typedef struct spi_device {
 } spi_device_t;
 /** @} */
 /*---------------------------------------------------------------------------*/
+/**
+ * \brief Retrieve the SPI device's port number if applicable
+ * \param member Retrieve struct member port_spi_member (e.g. port_spi_miso)
+ * \param device A pointer the a variable of type spi_device_t
+ *
+ * The same macro is used for all four port_spi_foo members of the struct. So
+ * to retrieve port_spi_cs, use SPI_DEVICE_PORT(cs, device). Replace cs with
+ * mosi to retrieve port_spi_mosi.
+ *
+ */
+#if GPIO_HAL_PORT_PIN_NUMBERING
+#define SPI_DEVICE_PORT(member, device) (device)->port_spi_##member
+#else
+#define SPI_DEVICE_PORT(member, device) GPIO_HAL_NULL_PORT
+#endif
+/*---------------------------------------------------------------------------*/
 /* These are architecture-independent functions to be used by SPI devices.   */
 /*---------------------------------------------------------------------------*/
 /**
@@ -114,7 +139,7 @@ typedef struct spi_device {
  * to be locked and the opening configuration.
  * \return SPI return code
  */
-spi_status_t spi_acquire(spi_device_t *dev);
+spi_status_t spi_acquire(const spi_device_t *dev);
 
 /**
  * \brief Closes and then unlocks an SPI controller
@@ -126,7 +151,7 @@ spi_status_t spi_acquire(spi_device_t *dev);
  * This should work only if the device has already locked the SPI
  * controller.
  */
-spi_status_t spi_release(spi_device_t *dev);
+spi_status_t spi_release(const spi_device_t *dev);
 
 /**
  * \brief Selects the SPI peripheral
@@ -136,7 +161,7 @@ spi_status_t spi_release(spi_device_t *dev);
  * Clears the CS pin. This should work only if the device has
  * already locked the SPI controller.
  */
-spi_status_t spi_select(spi_device_t *dev);
+spi_status_t spi_select(const spi_device_t *dev);
 
 /**
  * \brief Deselects the SPI peripheral
@@ -145,14 +170,14 @@ spi_status_t spi_select(spi_device_t *dev);
  *
  * Sets the CS pin. Lock is not required.
  */
-spi_status_t spi_deselect(spi_device_t *dev);
+spi_status_t spi_deselect(const spi_device_t *dev);
 
 /**
  * \brief Checks if a device has locked an SPI controller
  * \param dev An SPI device configuration which defines the controller.
  * \return true if the device has the lock, false otherwise.
  */
-bool spi_has_bus(spi_device_t *dev);
+bool spi_has_bus(const spi_device_t *dev);
 
 /**
  * \brief Writes a single byte to an SPI device
@@ -162,7 +187,7 @@ bool spi_has_bus(spi_device_t *dev);
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_write_byte(spi_device_t *dev, uint8_t data);
+spi_status_t spi_write_byte(const spi_device_t *dev, uint8_t data);
 
 /**
  * \brief Reads a single byte from an SPI device
@@ -172,7 +197,7 @@ spi_status_t spi_write_byte(spi_device_t *dev, uint8_t data);
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_read_byte(spi_device_t *dev, uint8_t *data);
+spi_status_t spi_read_byte(const spi_device_t *dev, uint8_t *data);
 
 /**
  * \brief Writes a buffer to an SPI device
@@ -183,7 +208,7 @@ spi_status_t spi_read_byte(spi_device_t *dev, uint8_t *data);
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_write(spi_device_t *dev,
+spi_status_t spi_write(const spi_device_t *dev,
                        const uint8_t *data, int size);
 
 /**
@@ -195,7 +220,7 @@ spi_status_t spi_write(spi_device_t *dev,
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_read(spi_device_t *dev, uint8_t *data, int size);
+spi_status_t spi_read(const spi_device_t *dev, uint8_t *data, int size);
 
 /**
  * \brief Reads and ignores data from an SPI device
@@ -206,7 +231,7 @@ spi_status_t spi_read(spi_device_t *dev, uint8_t *data, int size);
  * Reads size bytes from the SPI and throws them away.
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_read_skip(spi_device_t *dev, int size);
+spi_status_t spi_read_skip(const spi_device_t *dev, int size);
 
 /**
  * \brief Performs a generic SPI transfer
@@ -225,7 +250,7 @@ spi_status_t spi_read_skip(spi_device_t *dev, int size);
  * be copied to buf. The remaining ignore_len bytes won't be copied to the
  * buffer. The maximum of wlen and rlen+ignore_len of bytes will be transfered.
  */
-spi_status_t spi_transfer(spi_device_t *dev,
+spi_status_t spi_transfer(const spi_device_t *dev,
                           const uint8_t *data, int wsize,
                           uint8_t *buf, int rsize, int ignore);
 
@@ -238,7 +263,7 @@ spi_status_t spi_transfer(spi_device_t *dev,
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_strobe(spi_device_t *dev, uint8_t strobe,
+spi_status_t spi_strobe(const spi_device_t *dev, uint8_t strobe,
                         uint8_t *status);
 
 /**
@@ -251,7 +276,7 @@ spi_status_t spi_strobe(spi_device_t *dev, uint8_t strobe,
  *
  * It should work only if the device has already locked the SPI controller.
  */
-spi_status_t spi_read_register(spi_device_t *dev, uint8_t reg,
+spi_status_t spi_read_register(const spi_device_t *dev, uint8_t reg,
                                uint8_t *data, int size);
 
 /*---------------------------------------------------------------------------*/
@@ -265,7 +290,7 @@ spi_status_t spi_read_register(spi_device_t *dev, uint8_t reg,
  * \return 1 if the device has the lock, 0 otherwise.
  *
  */
-bool spi_arch_has_lock(spi_device_t *dev);
+bool spi_arch_has_lock(const spi_device_t *dev);
 
 /**
  * \brief Checks if an SPI controller is locked by any device
@@ -274,7 +299,7 @@ bool spi_arch_has_lock(spi_device_t *dev);
  * \return 1 if the controller is locked, 0 otherwise.
  *
  */
-bool spi_arch_is_bus_locked(spi_device_t *dev);
+bool spi_arch_is_bus_locked(const spi_device_t *dev);
 
 /**
  * \brief Locks and opens an SPI controller to the configuration specified.
@@ -285,7 +310,7 @@ bool spi_arch_is_bus_locked(spi_device_t *dev);
  * controller.
  *
  */
-spi_status_t spi_arch_lock_and_open(spi_device_t *dev);
+spi_status_t spi_arch_lock_and_open(const spi_device_t *dev);
 
 /**
  * \brief Closes and unlocks an SPI controller
@@ -298,7 +323,7 @@ spi_status_t spi_arch_lock_and_open(spi_device_t *dev);
  * controller.
  *
  */
-spi_status_t spi_arch_close_and_unlock(spi_device_t *dev);
+spi_status_t spi_arch_close_and_unlock(const spi_device_t *dev);
 
 /**
  * \brief Performs an SPI transfer
@@ -317,29 +342,10 @@ spi_status_t spi_arch_close_and_unlock(spi_device_t *dev);
  * be copied to buf. The remaining ignore_len bytes won't be copied to the
  * buffer. The maximum of wlen and rlen+ignore_len of bytes will be transfered.
  */
-spi_status_t spi_arch_transfer(spi_device_t *dev,
+spi_status_t spi_arch_transfer(const spi_device_t *dev,
                                const uint8_t *data, int wlen,
                                uint8_t *buf, int rlen,
                                int ignore_len);
-
-/**
- * \brief Selects an SPI device
- * \param dev An SPI device configuration that specifies the CS pin.
- * \return SPI return code
- *
- * Clears the CS pin. It should work only if the device has already
- * locked the SPI controller.
- */
-spi_status_t spi_arch_select(spi_device_t *dev);
-
-/**
- * \brief Deselects an SPI device
- * \param dev An SPI device configuration that specifies the CS pin.
- * \return SPI return code
- *
- * Set the CS pin. Locking the SPI controller is not needed.
- */
-spi_status_t spi_arch_deselect(spi_device_t *dev);
 
 #endif /* SPI_H_ */
 /*---------------------------------------------------------------------------*/

@@ -73,8 +73,9 @@ set_global_address(void)
   static uip_ipaddr_t ipaddr;
   int i;
   uint8_t state;
+  const uip_ipaddr_t *default_prefix = uip_ds6_default_prefix();
 
-  uip_ip6addr(&ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+  uip_ip6addr_copy(&ipaddr, default_prefix);
   uip_ds6_set_addr_iid(&ipaddr, &uip_lladdr);
   uip_ds6_addr_add(&ipaddr, 0, ADDR_AUTOCONF);
 
@@ -94,7 +95,7 @@ set_global_address(void)
 #if RPL_WITH_STORING
 uint8_t should_blink = 1;
 static void
-route_callback(int event, uip_ipaddr_t *route, uip_ipaddr_t *ipaddr, int num_routes)
+route_callback(int event, const uip_ipaddr_t *route, const uip_ipaddr_t *ipaddr, int num_routes)
 {
   if(event == UIP_DS6_NOTIFICATION_DEFRT_ADD) {
     should_blink = 0;

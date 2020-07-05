@@ -32,6 +32,7 @@
 #include "contiki.h"
 #include "net/routing/routing.h"
 #include "mqtt.h"
+#include "mqtt-prop.h"
 #include "net/ipv6/uip.h"
 #include "net/ipv6/uip-icmp6.h"
 #include "net/ipv6/sicslowpan.h"
@@ -45,25 +46,69 @@
 
 #include <string.h>
 #include <strings.h>
+#include <stdarg.h>
 /*---------------------------------------------------------------------------*/
 #define LOG_MODULE "mqtt-client"
+#ifdef MQTT_CLIENT_CONF_LOG_LEVEL
+#define LOG_LEVEL MQTT_CLIENT_CONF_LOG_LEVEL
+#else
 #define LOG_LEVEL LOG_LEVEL_NONE
+#endif
+/*---------------------------------------------------------------------------*/
+/* Controls whether the example will work in IBM Watson IoT platform mode */
+#ifdef MQTT_CLIENT_CONF_WITH_IBM_WATSON
+#define MQTT_CLIENT_WITH_IBM_WATSON MQTT_CLIENT_CONF_WITH_IBM_WATSON
+#else
+#define MQTT_CLIENT_WITH_IBM_WATSON 0
+#endif
+/*---------------------------------------------------------------------------*/
+/* MQTT broker address. Ignored in Watson mode */
+#ifdef MQTT_CLIENT_CONF_BROKER_IP_ADDR
+#define MQTT_CLIENT_BROKER_IP_ADDR MQTT_CLIENT_CONF_BROKER_IP_ADDR
+#else
+#define MQTT_CLIENT_BROKER_IP_ADDR "fd00::1"
+#endif
 /*---------------------------------------------------------------------------*/
 /*
- * IBM server: messaging.quickstart.internetofthings.ibmcloud.com
- * (184.172.124.189) mapped in an NAT64 (prefix 64:ff9b::/96) IPv6 address
- * Note: If not able to connect; lookup the IP address again as it may change.
+ * MQTT Org ID.
  *
- * Alternatively, publish to a local MQTT broker (e.g. mosquitto) running on
- * the node that hosts your border router
+ * If it equals "quickstart", the client will connect without authentication.
+ * In all other cases, the client will connect with authentication mode.
+ *
+ * In Watson mode, the username will be "use-token-auth". In non-Watson mode
+ * the username will be MQTT_CLIENT_USERNAME.
+ *
+ * In all cases, the password will be MQTT_CLIENT_AUTH_TOKEN.
  */
-#ifdef MQTT_CLIENT_CONF_BROKER_IP_ADDR
-static const char *broker_ip = MQTT_CLIENT_CONF_BROKER_IP_ADDR;
-#define DEFAULT_ORG_ID              "contiki-ng"
+#ifdef MQTT_CLIENT_CONF_ORG_ID
+#define MQTT_CLIENT_ORG_ID MQTT_CLIENT_CONF_ORG_ID
 #else
-static const char *broker_ip = "0064:ff9b:0000:0000:0000:0000:b8ac:7cbd";
-#define DEFAULT_ORG_ID              "quickstart"
+#define MQTT_CLIENT_ORG_ID "quickstart"
 #endif
+/*---------------------------------------------------------------------------*/
+/* MQTT token */
+#ifdef MQTT_CLIENT_CONF_AUTH_TOKEN
+#define MQTT_CLIENT_AUTH_TOKEN MQTT_CLIENT_CONF_AUTH_TOKEN
+#else
+#define MQTT_CLIENT_AUTH_TOKEN "AUTHTOKEN"
+#endif
+/*---------------------------------------------------------------------------*/
+#if MQTT_CLIENT_WITH_IBM_WATSON
+/* With IBM Watson support */
+static const char *broker_ip = "0064:ff9b:0000:0000:0000:0000:b8ac:7cbd";
+#define MQTT_CLIENT_USERNAME "use-token-auth"
+
+#else /* MQTT_CLIENT_WITH_IBM_WATSON */
+/* Without IBM Watson support. To be used with other brokers, e.g. Mosquitto */
+static const char *broker_ip = MQTT_CLIENT_BROKER_IP_ADDR;
+
+#ifdef MQTT_CLIENT_CONF_USERNAME
+#define MQTT_CLIENT_USERNAME MQTT_CLIENT_CONF_USERNAME
+#else
+#define MQTT_CLIENT_USERNAME "use-token-auth"
+#endif
+
+#endif /* MQTT_CLIENT_WITH_IBM_WATSON */
 /*---------------------------------------------------------------------------*/
 #ifdef MQTT_CLIENT_CONF_STATUS_LED
 #define MQTT_CLIENT_STATUS_LED MQTT_CLIENT_CONF_STATUS_LED
@@ -94,6 +139,7 @@ static const char *broker_ip = "0064:ff9b:0000:0000:0000:0000:b8ac:7cbd";
 #define RETRY_FOREVER              0xFF
 #define RECONNECT_INTERVAL         (CLOCK_SECOND * 2)
 
+/*---------------------------------------------------------------------------*/
 /*
  * Number of times to try reconnecting to the broker.
  * Can be a limited number (e.g. 3, 10 etc) or can be set to RETRY_FOREVER
@@ -122,18 +168,12 @@ static uint8_t state;
 #define CONFIG_CMD_TYPE_LEN       8
 #define CONFIG_IP_ADDR_STR_LEN   64
 /*---------------------------------------------------------------------------*/
-#define RSSI_MEASURE_INTERVAL_MAX 86400 /* secs: 1 day */
-#define RSSI_MEASURE_INTERVAL_MIN     5 /* secs */
-#define PUBLISH_INTERVAL_MAX      86400 /* secs: 1 day */
-#define PUBLISH_INTERVAL_MIN          5 /* secs */
-/*---------------------------------------------------------------------------*/
 /* A timeout used when waiting to connect to a network */
 #define NET_CONNECT_PERIODIC        (CLOCK_SECOND >> 2)
 #define NO_NET_LED_DURATION         (NET_CONNECT_PERIODIC >> 1)
 /*---------------------------------------------------------------------------*/
 /* Default configuration values */
 #define DEFAULT_TYPE_ID             "mqtt-client"
-#define DEFAULT_AUTH_TOKEN          "AUTHZ"
 #define DEFAULT_EVENT_TYPE_ID       "status"
 #define DEFAULT_SUBSCRIBE_CMD_TYPE  "+"
 #define DEFAULT_BROKER_PORT         1883
@@ -211,7 +251,30 @@ static const mqtt_client_extension_t *mqtt_client_extensions[] = { NULL };
 static const uint8_t mqtt_client_extension_count = 0;
 #endif
 /*---------------------------------------------------------------------------*/
+/* MQTTv5 */
+#if MQTT_5
+static uint8_t PUB_TOPIC_ALIAS;
+
+struct mqtt_prop_list *publish_props;
+
+/* Control whether or not to perform authentication (MQTTv5) */
+#define MQTT_5_AUTH_EN 0
+#if MQTT_5_AUTH_EN
+struct mqtt_prop_list *auth_props;
+#endif
+#endif
+/*---------------------------------------------------------------------------*/
 PROCESS(mqtt_client_process, "MQTT Client");
+/*---------------------------------------------------------------------------*/
+static bool
+have_connectivity(void)
+{
+  if(uip_ds6_get_global(ADDR_PREFERRED) == NULL ||
+     uip_ds6_defrt_choose() == NULL) {
+    return false;
+  }
+  return true;
+}
 /*---------------------------------------------------------------------------*/
 static int
 ipaddr_sprintf(char *buf, uint8_t buf_len, const uip_ipaddr_t *addr)
@@ -272,6 +335,7 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
   }
 
   if(strncmp(&topic[10], "leds", 4) == 0) {
+    LOG_DBG("Received MQTT SUB\n");
     if(chunk[0] == '1') {
       leds_on(LEDS_RED);
     } else if(chunk[0] == '0') {
@@ -291,7 +355,8 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
     state = STATE_CONNECTED;
     break;
   }
-  case MQTT_EVENT_DISCONNECTED: {
+  case MQTT_EVENT_DISCONNECTED:
+  case MQTT_EVENT_CONNECTION_REFUSED_ERROR: {
     LOG_DBG("MQTT Disconnect. Reason %u\n", *((mqtt_event_t *)data));
 
     state = STATE_DISCONNECTED;
@@ -305,15 +370,33 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
     if(msg_ptr->first_chunk) {
       msg_ptr->first_chunk = 0;
       LOG_DBG("Application received publish for topic '%s'. Payload "
-              "size is %i bytes.\n", msg_ptr->topic, msg_ptr->payload_length);
+              "size is %i bytes.\n", msg_ptr->topic, msg_ptr->payload_chunk_length);
     }
 
     pub_handler(msg_ptr->topic, strlen(msg_ptr->topic),
-                msg_ptr->payload_chunk, msg_ptr->payload_length);
+                msg_ptr->payload_chunk, msg_ptr->payload_chunk_length);
+#if MQTT_5
+    /* Print any properties received along with the message */
+    mqtt_prop_print_input_props(m);
+#endif
     break;
   }
   case MQTT_EVENT_SUBACK: {
+#if MQTT_31
     LOG_DBG("Application is subscribed to topic successfully\n");
+#else
+    struct mqtt_suback_event *suback_event = (struct mqtt_suback_event *)data;
+
+    if(suback_event->success) {
+      LOG_DBG("Application is subscribed to topic successfully\n");
+    } else {
+      LOG_DBG("Application failed to subscribe to topic (ret code %x)\n", suback_event->return_code);
+    }
+#if MQTT_5
+    /* Print any properties received along with the message */
+    mqtt_prop_print_input_props(m);
+#endif
+#endif
     break;
   }
   case MQTT_EVENT_UNSUBACK: {
@@ -324,6 +407,13 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
     LOG_DBG("Publishing complete.\n");
     break;
   }
+#if MQTT_5_AUTH_EN
+  case MQTT_EVENT_AUTH: {
+    LOG_DBG("Continuing auth.\n");
+    struct mqtt_prop_auth_event *auth_event = (struct mqtt_prop_auth_event *)data;
+    break;
+  }
+#endif
   default:
     LOG_DBG("Application got a unhandled MQTT event: %i\n", event);
     break;
@@ -341,6 +431,10 @@ construct_pub_topic(void)
     LOG_INFO("Pub Topic: %d, Buffer %d\n", len, BUFFER_SIZE);
     return 0;
   }
+
+#if MQTT_5
+  PUB_TOPIC_ALIAS = 1;
+#endif
 
   return 1;
 }
@@ -414,6 +508,12 @@ update_config(void)
    */
   etimer_set(&publish_periodic_timer, 0);
 
+#if MQTT_5
+  LIST_STRUCT_INIT(&(conn.will), properties);
+
+  mqtt_props_init();
+#endif
+
   return;
 }
 /*---------------------------------------------------------------------------*/
@@ -423,9 +523,10 @@ init_config()
   /* Populate configuration with default values */
   memset(&conf, 0, sizeof(mqtt_client_config_t));
 
-  memcpy(conf.org_id, DEFAULT_ORG_ID, strlen(DEFAULT_ORG_ID));
+  memcpy(conf.org_id, MQTT_CLIENT_ORG_ID, strlen(MQTT_CLIENT_ORG_ID));
   memcpy(conf.type_id, DEFAULT_TYPE_ID, strlen(DEFAULT_TYPE_ID));
-  memcpy(conf.auth_token, DEFAULT_AUTH_TOKEN, strlen(DEFAULT_AUTH_TOKEN));
+  memcpy(conf.auth_token, MQTT_CLIENT_AUTH_TOKEN,
+         strlen(MQTT_CLIENT_AUTH_TOKEN));
   memcpy(conf.event_type_id, DEFAULT_EVENT_TYPE_ID,
          strlen(DEFAULT_EVENT_TYPE_ID));
   memcpy(conf.broker_ip, broker_ip, strlen(broker_ip));
@@ -444,7 +545,13 @@ subscribe(void)
   /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
 
+#if MQTT_5
+  status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0,
+                          MQTT_NL_OFF, MQTT_RAP_OFF, MQTT_RET_H_SEND_ALL,
+                          MQTT_PROP_LIST_NONE);
+#else
   status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0);
+#endif
 
   LOG_DBG("Subscribing!\n");
   if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
@@ -459,6 +566,10 @@ publish(void)
   int len;
   int remaining = APP_BUFFER_SIZE;
   int i;
+  char def_rt_str[64];
+#if MQTT_5
+  static uint8_t prop_err = 1;
+#endif
 
   seq_nr_value++;
 
@@ -485,7 +596,6 @@ publish(void)
   buf_ptr += len;
 
   /* Put our Default route's string representation in a buffer */
-  char def_rt_str[64];
   memset(def_rt_str, 0, sizeof(def_rt_str));
   ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
@@ -522,8 +632,31 @@ publish(void)
     return;
   }
 
+#if MQTT_5
+  /* Only send full topic name with the first PUBLISH
+   * Afterwards, only use topic alias
+   */
+  if(seq_nr_value == 1) {
+    mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+                 strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF,
+                 PUB_TOPIC_ALIAS, MQTT_TOPIC_ALIAS_OFF,
+                 publish_props);
+
+    prop_err = mqtt_prop_register(&publish_props,
+                                  NULL,
+                                  MQTT_FHDR_MSG_TYPE_PUBLISH,
+                                  MQTT_VHDR_PROP_TOPIC_ALIAS,
+                                  PUB_TOPIC_ALIAS);
+  } else {
+    mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+                 strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF,
+                 PUB_TOPIC_ALIAS, (mqtt_topic_alias_en_t) !prop_err,
+                 publish_props);
+  }
+#else
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+#endif
 
   LOG_DBG("Publish!\n");
 }
@@ -533,20 +666,58 @@ connect_to_broker(void)
 {
   /* Connect to MQTT server */
   mqtt_connect(&conn, conf.broker_ip, conf.broker_port,
-               conf.pub_interval * 3);
+               (conf.pub_interval * 3) / CLOCK_SECOND,
+#if MQTT_5
+               MQTT_CLEAN_SESSION_ON,
+               MQTT_PROP_LIST_NONE);
+#else
+               MQTT_CLEAN_SESSION_ON);
+#endif
 
   state = STATE_CONNECTING;
 }
 /*---------------------------------------------------------------------------*/
+#if MQTT_5_AUTH_EN
+static void
+send_auth(struct mqtt_prop_auth_event *auth_info, mqtt_auth_type_t auth_type)
+{
+  mqtt_prop_clear_prop_list(&auth_props);
+
+  if(auth_info->auth_method.length) {
+    (void)mqtt_prop_register(&auth_props,
+                             NULL,
+                             MQTT_FHDR_MSG_TYPE_AUTH,
+                             MQTT_VHDR_PROP_AUTH_METHOD,
+                             auth_info->auth_method.string);
+  }
+
+  if(auth_info->auth_data.len) {
+    (void)mqtt_prop_register(&auth_props,
+                             NULL,
+                             MQTT_FHDR_MSG_TYPE_AUTH,
+                             MQTT_VHDR_PROP_AUTH_DATA,
+                             auth_info->auth_data.data,
+                             auth_info->auth_data.len);
+  }
+
+  /* Connect to MQTT server */
+  mqtt_auth(&conn, auth_type, auth_props);
+
+  if(state != STATE_CONNECTING) {
+    LOG_DBG("MQTT reauthenticating\n");
+  }
+}
+#endif
+/*---------------------------------------------------------------------------*/
 static void
 ping_parent(void)
 {
-  if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) {
-    return;
+  if(have_connectivity()) {
+    uip_icmp6_send(uip_ds6_defrt_choose(), ICMP6_ECHO_REQUEST, 0,
+                   ECHO_REQ_PAYLOAD_LEN);
+  } else {
+    LOG_WARN("ping_parent() is called while we don't have connectivity\n");
   }
-
-  uip_icmp6_send(uip_ds6_defrt_choose(), ICMP6_ECHO_REQUEST, 0,
-                 ECHO_REQ_PAYLOAD_LEN);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -568,7 +739,7 @@ state_machine(void)
         state = STATE_ERROR;
         break;
       } else {
-        mqtt_set_username_password(&conn, "use-token-auth",
+        mqtt_set_username_password(&conn, MQTT_CLIENT_USERNAME,
                                    conf.auth_token);
       }
     }
@@ -577,11 +748,24 @@ state_machine(void)
     conn.auto_reconnect = 0;
     connect_attempt = 1;
 
+#if MQTT_5
+    mqtt_prop_create_list(&publish_props);
+
+    /* this will be sent with every publish packet */
+    (void)mqtt_prop_register(&publish_props,
+                             NULL,
+                             MQTT_FHDR_MSG_TYPE_PUBLISH,
+                             MQTT_VHDR_PROP_USER_PROP,
+                             "Contiki", "v4.5+");
+
+    mqtt_prop_print_list(publish_props, MQTT_VHDR_PROP_ANY);
+#endif
+
     state = STATE_REGISTERED;
-    LOG_DBG("Init\n");
+    LOG_DBG("Init MQTT version %d\n", MQTT_PROTOCOL_VERSION);
     /* Continue */
   case STATE_REGISTERED:
-    if(uip_ds6_get_global(ADDR_PREFERRED) != NULL) {
+    if(have_connectivity()) {
       /* Registered and with a public IP. Connect */
       LOG_DBG("Registered. Connect attempt %u\n", connect_attempt);
       ping_parent();
@@ -650,7 +834,11 @@ state_machine(void)
        RECONNECT_ATTEMPTS == RETRY_FOREVER) {
       /* Disconnect and backoff */
       clock_time_t interval;
+#if MQTT_5
+      mqtt_disconnect(&conn, MQTT_PROP_LIST_NONE);
+#else
       mqtt_disconnect(&conn);
+#endif
       connect_attempt++;
 
       interval = connect_attempt < 3 ? RECONNECT_INTERVAL << connect_attempt :

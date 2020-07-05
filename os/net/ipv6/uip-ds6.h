@@ -43,6 +43,7 @@
 #define UIP_DS6_H_
 
 #include "net/ipv6/uip.h"
+#include "net/ipv6/multicast/uip-mcast6.h"
 #include "sys/stimer.h"
 /* The size of uip_ds6_addr_t depends on UIP_ND6_DEF_MAXDADNS. Include uip-nd6.h to define it. */
 #include "net/ipv6/uip-nd6.h"
@@ -165,7 +166,7 @@
 /** \brief General DS6 definitions */
 /** Period for uip-ds6 periodic task*/
 #ifndef UIP_DS6_CONF_PERIOD
-#define UIP_DS6_PERIOD   (CLOCK_SECOND/10)
+#define UIP_DS6_PERIOD   (60 * CLOCK_SECOND)
 #else
 #define UIP_DS6_PERIOD UIP_DS6_CONF_PERIOD
 #endif
@@ -299,6 +300,22 @@ void uip_ds6_prefix_rm(uip_ds6_prefix_t *prefix);
 uip_ds6_prefix_t *uip_ds6_prefix_lookup(uip_ipaddr_t *ipaddr,
                                         uint8_t ipaddrlen);
 uint8_t uip_ds6_is_addr_onlink(uip_ipaddr_t *ipaddr);
+
+/**
+ * \brief Retrieve the Default IPv6 prefix
+ * \retval A pointer to the default prefix
+ */
+const uip_ip6addr_t *uip_ds6_default_prefix(void);
+
+/**
+ * \brief Set the Default IPv6 prefix
+ * \param prefix A pointer to the new default prefix
+ *
+ * uip_ds6_init() will set the default prefix to UIP_DS6_DEFAULT_PREFIX
+ * unless this function here has been called beforehand to set a new default
+ * prefix.
+ */
+void uip_ds6_set_default_prefix(const uip_ip6addr_t *prefix);
 
 /** @} */
 

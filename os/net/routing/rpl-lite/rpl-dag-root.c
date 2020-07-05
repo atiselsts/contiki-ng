@@ -42,6 +42,7 @@
 
 #include "net/routing/rpl-lite/rpl.h"
 #include "net/ipv6/uip-ds6-route.h"
+#include "net/ipv6/uip-sr.h"
 
 /* Log configuration */
 #include "sys/log.h"
@@ -49,17 +50,42 @@
 #define LOG_LEVEL LOG_LEVEL_RPL
 
 /*---------------------------------------------------------------------------*/
+void
+rpl_dag_root_print_links(const char *str)
+{
+  if(rpl_dag_root_is_root()) {
+    if(uip_sr_num_nodes() > 0) {
+      uip_sr_node_t *link;
+      /* Our routing links */
+      LOG_INFO("links: %u routing links in total (%s)\n", uip_sr_num_nodes(), str);
+      link = uip_sr_node_head();
+      while(link != NULL) {
+        char buf[100];
+        uip_sr_link_snprint(buf, sizeof(buf), link);
+        LOG_INFO("links: %s\n", buf);
+        link = uip_sr_node_next(link);
+      }
+      LOG_INFO("links: end of list\n");
+    } else {
+      LOG_INFO("No routing links\n");
+    }
+  }
+}
+/*---------------------------------------------------------------------------*/
 static void
 set_global_address(uip_ipaddr_t *prefix, uip_ipaddr_t *iid)
 {
   static uip_ipaddr_t root_ipaddr;
+  const uip_ipaddr_t *default_prefix;
   int i;
   uint8_t state;
+
+  default_prefix = uip_ds6_default_prefix();
 
   /* Assign a unique local address (RFC4193,
      http://tools.ietf.org/html/rfc4193). */
   if(prefix == NULL) {
-    uip_ip6addr(&root_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+    uip_ip6addr_copy(&root_ipaddr, default_prefix);
   } else {
     memcpy(&root_ipaddr, prefix, 8);
   }
@@ -71,11 +97,12 @@ set_global_address(uip_ipaddr_t *prefix, uip_ipaddr_t *iid)
 
   uip_ds6_addr_add(&root_ipaddr, 0, ADDR_AUTOCONF);
 
-  LOG_INFO("IPv6 addresses: ");
+  LOG_INFO("IPv6 addresses:\n");
   for(i = 0; i < UIP_DS6_ADDR_NB; i++) {
     state = uip_ds6_if.addr_list[i].state;
     if(uip_ds6_if.addr_list[i].isused &&
        (state == ADDR_TENTATIVE || state == ADDR_PREFERRED)) {
+      LOG_INFO("-- ");
       LOG_INFO_6ADDR(&uip_ds6_if.addr_list[i].ipaddr);
       LOG_INFO_("\n");
     }

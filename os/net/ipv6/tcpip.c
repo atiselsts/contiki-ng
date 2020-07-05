@@ -66,10 +66,6 @@
 #define LOG_MODULE "TCP/IP"
 #define LOG_LEVEL LOG_LEVEL_TCPIP
 
-#define UIP_ICMP_BUF ((struct uip_icmp_hdr *)&uip_buf[UIP_LLIPH_LEN + uip_ext_len])
-#define UIP_IP_BUF ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
-#define UIP_TCP_BUF ((struct uip_tcpip_hdr *)&uip_buf[UIP_LLH_LEN])
-
 #ifdef UIP_FALLBACK_INTERFACE
 extern struct uip_fallback_interface UIP_FALLBACK_INTERFACE;
 #endif
@@ -140,7 +136,7 @@ tcpip_output(const uip_lladdr_t *a)
     return ret;
   } else {
     /* Ok, ignore and drop... */
-    uip_clear_buf();
+    uipbuf_clear();
     return 0;
   }
 }
@@ -463,18 +459,17 @@ tcpip_input(void)
      NETSTACK_IP_PROCESS) {
     process_post_synch(&tcpip_process, PACKET_INPUT, NULL);
   } /* else - do nothing and drop */
-  uip_clear_buf();
+  uipbuf_clear();
 }
-/*---------------------------------------------------------------------------*/
-extern void remove_ext_hdr(void);
 /*---------------------------------------------------------------------------*/
 static void
 output_fallback(void)
 {
 #ifdef UIP_FALLBACK_INTERFACE
+  uip_last_proto = *((uint8_t *)UIP_IP_BUF + 40);
   LOG_INFO("fallback: removing ext hdrs & setting proto %d %d\n",
-         uip_ext_len, *((uint8_t *)UIP_IP_BUF + 40));
-  remove_ext_hdr();
+         uip_ext_len, uip_last_proto);
+  uip_remove_ext_hdr();
   /* Inform the other end that the destination is not reachable. If it's
    * not informed routes might get lost unexpectedly until there's a need
    * to send a new packet to the peer */
@@ -491,7 +486,7 @@ output_fallback(void)
 }
 /*---------------------------------------------------------------------------*/
 static void
-annotate_transmission(uip_ipaddr_t *nexthop)
+annotate_transmission(const uip_ipaddr_t *nexthop)
 {
 #if TCPIP_CONF_ANNOTATE_TRANSMISSIONS
   static uint8_t annotate_last;
@@ -506,10 +501,10 @@ annotate_transmission(uip_ipaddr_t *nexthop)
 #endif /* TCPIP_CONF_ANNOTATE_TRANSMISSIONS */
 }
 /*---------------------------------------------------------------------------*/
-static uip_ipaddr_t*
+static const uip_ipaddr_t*
 get_nexthop(uip_ipaddr_t *addr)
 {
-  uip_ipaddr_t *nexthop;
+  const uip_ipaddr_t *nexthop;
   uip_ds6_route_t *route;
 
   LOG_INFO("output: processing %u bytes packet from ", uip_len);
@@ -636,7 +631,7 @@ send_queued(uip_ds6_nbr_t *nbr)
 }
 /*---------------------------------------------------------------------------*/
 static int
-send_nd6_ns(uip_ipaddr_t *nexthop)
+send_nd6_ns(const uip_ipaddr_t *nexthop)
 {
   int err = 1;
 
@@ -677,7 +672,7 @@ tcpip_ipv6_output(void)
   uip_ipaddr_t ipaddr;
   uip_ds6_nbr_t *nbr = NULL;
   const uip_lladdr_t *linkaddr;
-  uip_ipaddr_t *nexthop;
+  const uip_ipaddr_t *nexthop;
 
   if(uip_len == 0) {
     return;
@@ -702,7 +697,7 @@ tcpip_ipv6_output(void)
   if(!NETSTACK_ROUTING.ext_header_update()) {
     /* Packet can not be forwarded */
     LOG_ERR("output: routing protocol extension header update error\n");
-    uip_clear_buf();
+    uipbuf_clear();
     return;
   }
 
@@ -804,7 +799,7 @@ send_packet:
   }
 
 exit:
-  uip_clear_buf();
+  uipbuf_clear();
   return;
 }
 /*---------------------------------------------------------------------------*/

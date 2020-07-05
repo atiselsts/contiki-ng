@@ -56,6 +56,7 @@
  * \sa \ref timer "Simple timer library"
  * \sa \ref clock "Clock library" (used by the timer library)
  *
+ * It is \e not safe to manipulate event timers within an interrupt context.
  * @{
  */
 
@@ -107,7 +108,8 @@ void etimer_set(struct etimer *et, clock_time_t interval);
  *             is the exact time that the event timer last
  *             expired. Therefore, this function will cause the timer
  *             to be stable over time, unlike the etimer_restart()
- *             function.
+ *             function. If this is executed before the timer expired,
+ *             this function has no effect.
  *
  * \sa etimer_restart()
  */

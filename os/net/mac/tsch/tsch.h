@@ -60,28 +60,16 @@ frequency hopping for enhanced reliability.
 #include "net/mac/tsch/tsch-packet.h"
 #include "net/mac/tsch/tsch-security.h"
 #include "net/mac/tsch/tsch-schedule.h"
+#include "net/mac/tsch/tsch-stats.h"
 #if UIP_CONF_IPV6_RPL
 #include "net/mac/tsch/tsch-rpl.h"
 #endif /* UIP_CONF_IPV6_RPL */
 
-#if CONTIKI_TARGET_COOJA
-#include "lib/simEnvChange.h"
-#include "sys/cooja_mt.h"
-#endif /* CONTIKI_TARGET_COOJA */
 
-/*********** Macros *********/
-
-/* Wait for a condition with timeout t0+offset. */
-#if CONTIKI_TARGET_COOJA
-#define BUSYWAIT_UNTIL_ABS(cond, t0, offset) \
-  while(!(cond) && RTIMER_CLOCK_LT(RTIMER_NOW(), (t0) + (offset))) { \
-    simProcessRunValue = 1; \
-    cooja_mt_yield(); \
-  };
-#else
-#define BUSYWAIT_UNTIL_ABS(cond, t0, offset) \
-  while(!(cond) && RTIMER_CLOCK_LT(RTIMER_NOW(), (t0) + (offset))) ;
-#endif /* CONTIKI_TARGET_COOJA */
+/* Include Arch-Specific conf */
+#ifdef TSCH_CONF_ARCH_HDR_PATH
+#include TSCH_CONF_ARCH_HDR_PATH
+#endif /* TSCH_CONF_ARCH_HDR_PATH */
 
 /*********** Callbacks *********/
 
@@ -99,6 +87,10 @@ frequency hopping for enhanced reliability.
 #ifndef TSCH_CALLBACK_KA_SENT
 #define TSCH_CALLBACK_KA_SENT tsch_rpl_callback_ka_sent
 #endif /* TSCH_CALLBACK_KA_SENT */
+
+#ifndef TSCH_RPL_CHECK_DODAG_JOINED
+#define TSCH_RPL_CHECK_DODAG_JOINED tsch_rpl_check_dodag_joined
+#endif /* TSCH_RPL_CHECK_DODAG_JOINED */
 
 #endif /* UIP_CONF_IPV6_RPL */
 
@@ -129,6 +121,11 @@ void TSCH_CALLBACK_LEAVING_NETWORK();
 void TSCH_CALLBACK_KA_SENT();
 #endif
 
+/* Called by TSCH before sending a EB */
+#ifdef TSCH_RPL_CHECK_DODAG_JOINED
+int TSCH_RPL_CHECK_DODAG_JOINED();
+#endif
+
 /* Called by TSCH form interrupt after receiving a frame, enabled upper-layer to decide
  * whether to ACK or NACK */
 #ifdef TSCH_CALLBACK_DO_NACK
@@ -143,7 +140,7 @@ void TSCH_CALLBACK_NEW_TIME_SOURCE(const struct tsch_neighbor *old, const struct
 
 /* Called by TSCH every time a packet is ready to be added to the send queue */
 #ifdef TSCH_CALLBACK_PACKET_READY
-void TSCH_CALLBACK_PACKET_READY(void);
+int TSCH_CALLBACK_PACKET_READY(void);
 #endif
 
 /***** External Variables *****/
@@ -164,15 +161,24 @@ extern const linkaddr_t tsch_eb_address;
 extern struct tsch_asn_t tsch_current_asn;
 extern uint8_t tsch_join_priority;
 extern struct tsch_link *current_link;
+/* If we are inside a slot, these tell the current channel and channel offset */
+extern uint8_t tsch_current_channel;
+extern uint8_t tsch_current_channel_offset;
 /* TSCH channel hopping sequence */
 extern uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
 extern struct tsch_asn_divisor_t tsch_hopping_sequence_length;
+/* TSCH timeslot timing (in micro-second) */
+extern tsch_timeslot_timing_usec tsch_timing_us;
 /* TSCH timeslot timing (in rtimer ticks) */
-extern rtimer_clock_t tsch_timing[tsch_ts_elements_count];
+extern tsch_timeslot_timing_ticks tsch_timing;
 /* Statistics on the current session */
 extern unsigned long tx_count;
 extern unsigned long rx_count;
 extern unsigned long sync_count;
+extern int32_t min_drift_seen;
+extern int32_t max_drift_seen;
+/* The TSCH standard 10ms timeslot timing */
+extern const tsch_timeslot_timing_usec tsch_timeslot_timing_us_10000;
 
 /* TSCH processes */
 PROCESS_NAME(tsch_process);
@@ -193,6 +199,11 @@ void tsch_set_join_priority(uint8_t jp);
  * not be set to exceed TSCH_MAX_EB_PERIOD. Set to 0 to stop sending EBs.
  * Actual transmissions are jittered, spaced by a random number within
  * [period*0.75, period[
+ * If RPL is used, the period will be automatically reset by RPL
+ * equal to the DIO period whenever the DIO period changes.
+ * Hence, calling `tsch_set_eb_period(0)` is NOT sufficient to disable sending EB!
+ * To do that, either configure the node in RPL leaf mode, or
+ * use static config for TSCH (`define TSCH_CONF_EB_PERIOD 0`).
  *
  * \param period The period in Clock ticks.
  */
@@ -200,8 +211,8 @@ void tsch_set_eb_period(uint32_t period);
 /**
  * Set the desynchronization timeout after which a node sends a unicasst
  * keep-alive (KA) to its time source. Set to 0 to stop sending KAs. The
- * actual timeout is a random number within
- * [timeout*0.9, timeout[
+ * actual timeout is a random number within [timeout*0.9, timeout[
+ * Can be called from an interrupt.
  *
  * \param timeout The timeout in Clock ticks.
  */
@@ -223,13 +234,18 @@ void tsch_set_coordinator(int enable);
 void tsch_set_pan_secured(int enable);
 /**
   * Schedule a keep-alive transmission within [timeout*0.9, timeout[
+  * Can be called from an interrupt.
   * @see tsch_set_ka_timeout
+  *
+  * \param immediate send immediately when 1, schedule using current timeout when 0
   */
-void tsch_schedule_keepalive(void);
+void tsch_schedule_keepalive(int immediate);
 /**
-  * Schedule a keep-alive immediately
+  * Get the time, in clock ticks, since the TSCH network was started.
+  *
+  * \return The network uptime, or -1 if the node is not part of a TSCH network.
   */
-void tsch_schedule_keepalive_immediately(void);
+uint64_t tsch_get_network_uptime_ticks(void);
 /**
   * Leave the TSCH network we are currently in
   */

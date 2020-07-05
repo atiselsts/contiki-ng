@@ -60,7 +60,7 @@
 #endif
 
 static uint16_t slotframe_handle = 0;
-static uint16_t channel_offset = 0;
+static uint16_t local_channel_offset;
 static struct tsch_slotframe *sf_unicast;
 
 /*---------------------------------------------------------------------------*/
@@ -69,6 +69,17 @@ get_node_timeslot(const linkaddr_t *addr)
 {
   if(addr != NULL && ORCHESTRA_UNICAST_PERIOD > 0) {
     return ORCHESTRA_LINKADDR_HASH(addr) % ORCHESTRA_UNICAST_PERIOD;
+  } else {
+    return 0xffff;
+  }
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
+get_node_channel_offset(const linkaddr_t *addr)
+{
+  if(addr != NULL && ORCHESTRA_UNICAST_MAX_CHANNEL_OFFSET >= ORCHESTRA_UNICAST_MIN_CHANNEL_OFFSET) {
+    return ORCHESTRA_LINKADDR_HASH(addr) % (ORCHESTRA_UNICAST_MAX_CHANNEL_OFFSET - ORCHESTRA_UNICAST_MIN_CHANNEL_OFFSET + 1)
+        + ORCHESTRA_UNICAST_MIN_CHANNEL_OFFSET;
   } else {
     return 0xffff;
   }
@@ -101,9 +112,13 @@ add_uc_link(const linkaddr_t *linkaddr)
       link_options |= ORCHESTRA_UNICAST_SENDER_BASED ? LINK_OPTION_TX | UNICAST_SLOT_SHARED_FLAG: LINK_OPTION_RX;
     }
 
-    /* Add/update link */
+    /* Add/update link.
+     * Always configure the link with the local node's channel offset.
+     * If this is an Rx link, that is what the node needs to use.
+     * If this is a Tx link, packet's channel offset will override the link's channel offset.
+     */
     tsch_schedule_add_link(sf_unicast, link_options, LINK_TYPE_NORMAL, &tsch_broadcast_address,
-          timeslot, channel_offset);
+          timeslot, local_channel_offset, 1);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -118,7 +133,7 @@ remove_uc_link(const linkaddr_t *linkaddr)
   }
 
   timeslot = get_node_timeslot(linkaddr);
-  l = tsch_schedule_get_link_by_timeslot(sf_unicast, timeslot);
+  l = tsch_schedule_get_link_by_timeslot(sf_unicast, timeslot, local_channel_offset);
   if(l == NULL) {
     return;
   }
@@ -144,7 +159,7 @@ remove_uc_link(const linkaddr_t *linkaddr)
     /* This is our link, keep it but update the link options */
     uint8_t link_options = ORCHESTRA_UNICAST_SENDER_BASED ? LINK_OPTION_TX | UNICAST_SLOT_SHARED_FLAG: LINK_OPTION_RX;
     tsch_schedule_add_link(sf_unicast, link_options, LINK_TYPE_NORMAL, &tsch_broadcast_address,
-              timeslot, channel_offset);
+              timeslot, local_channel_offset, 1);
   } else {
     /* Remove link */
     tsch_schedule_remove_link(sf_unicast, l);
@@ -164,7 +179,7 @@ child_removed(const linkaddr_t *linkaddr)
 }
 /*---------------------------------------------------------------------------*/
 static int
-select_packet(uint16_t *slotframe, uint16_t *timeslot)
+select_packet(uint16_t *slotframe, uint16_t *timeslot, uint16_t *channel_offset)
 {
   /* Select data packets we have a unicast link to */
   const linkaddr_t *dest = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
@@ -176,6 +191,10 @@ select_packet(uint16_t *slotframe, uint16_t *timeslot)
     if(timeslot != NULL) {
       *timeslot = ORCHESTRA_UNICAST_SENDER_BASED ? get_node_timeslot(&linkaddr_node_addr) : get_node_timeslot(dest);
     }
+    /* set per-packet channel offset */
+    if(channel_offset != NULL) {
+      *channel_offset = get_node_channel_offset(dest);
+    }
     return 1;
   }
   return 0;
@@ -185,8 +204,8 @@ static void
 new_time_source(const struct tsch_neighbor *old, const struct tsch_neighbor *new)
 {
   if(new != old) {
-    const linkaddr_t *old_addr = old != NULL ? &old->addr : NULL;
-    const linkaddr_t *new_addr = new != NULL ? &new->addr : NULL;
+    const linkaddr_t *old_addr = tsch_queue_get_nbr_address(old);
+    const linkaddr_t *new_addr = tsch_queue_get_nbr_address(new);
     if(new_addr != NULL) {
       linkaddr_copy(&orchestra_parent_linkaddr, new_addr);
     } else {
@@ -200,15 +219,18 @@ new_time_source(const struct tsch_neighbor *old, const struct tsch_neighbor *new
 static void
 init(uint16_t sf_handle)
 {
+  uint16_t timeslot;
+  linkaddr_t *local_addr = &linkaddr_node_addr;
+
   slotframe_handle = sf_handle;
-  channel_offset = sf_handle;
+  local_channel_offset = get_node_channel_offset(local_addr);
   /* Slotframe for unicast transmissions */
   sf_unicast = tsch_schedule_add_slotframe(slotframe_handle, ORCHESTRA_UNICAST_PERIOD);
-  uint16_t timeslot = get_node_timeslot(&linkaddr_node_addr);
+  timeslot = get_node_timeslot(local_addr);
   tsch_schedule_add_link(sf_unicast,
             ORCHESTRA_UNICAST_SENDER_BASED ? LINK_OPTION_TX | UNICAST_SLOT_SHARED_FLAG: LINK_OPTION_RX,
             LINK_TYPE_NORMAL, &tsch_broadcast_address,
-            timeslot, channel_offset);
+            timeslot, local_channel_offset, 1);
 }
 /*---------------------------------------------------------------------------*/
 struct orchestra_rule unicast_per_neighbor_rpl_storing = {
@@ -217,6 +239,7 @@ struct orchestra_rule unicast_per_neighbor_rpl_storing = {
   select_packet,
   child_added,
   child_removed,
+  "unicast per neighbor storing",
 };
 
 #endif /* UIP_MAX_ROUTES */

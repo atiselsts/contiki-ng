@@ -41,6 +41,16 @@
 #define IEEE802154_CONF_PANID 0xabcd
 #endif /* IEEE802154_CONF_PANID */
 
+/* IEEE802154_CONF_DEFAULT_CHANNEL defines the default channel for IEEE 802.15.4
+ * networks, for MAC layers without a channel selection or channel hopping
+ * mechanism. Current 802.15.4 MAC layers:
+ * - CSMA: uses IEEE802154_CONF_DEFAULT_CHANNEL
+ * - TSCH: uses its own TSCH_DEFAULT_HOPPING_SEQUENCE instead
+ */
+#ifndef IEEE802154_CONF_DEFAULT_CHANNEL
+#define IEEE802154_CONF_DEFAULT_CHANNEL 26
+#endif /* IEEE802154_CONF_DEF_CHANNEL */
+
 /* QUEUEBUF_CONF_NUM specifies the number of queue buffers. Queue
    buffers are used throughout the Contiki netstack but the
    configuration option can be tweaked to save memory. Performance can
@@ -186,14 +196,6 @@
 #ifndef SICSLOWPAN_CONF_FRAG
 #define SICSLOWPAN_CONF_FRAG 1
 #endif /* SICSLOWPAN_CONF_FRAG */
-
-/* SICSLOWPAN_CONF_MAC_MAX_PAYLOAD is the maximum available size for
-   frame headers, link layer security-related overhead,  as well as
-   6LoWPAN payload. By default, SICSLOWPAN_CONF_MAC_MAX_PAYLOAD is
-   127 bytes (MTU of 802.15.4) - 2 bytes (Footer of 802.15.4). */
-#ifndef SICSLOWPAN_CONF_MAC_MAX_PAYLOAD
-#define SICSLOWPAN_CONF_MAC_MAX_PAYLOAD (127 - 2)
-#endif /* SICSLOWPAN_CONF_MAC_MAX_PAYLOAD */
 
 /* SICSLOWPAN_CONF_COMPRESSION specifies what 6lowpan compression
    mechanism to be used. 6lowpan hc06 is the default in Contiki. */

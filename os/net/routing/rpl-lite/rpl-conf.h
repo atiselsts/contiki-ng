@@ -185,10 +185,17 @@
  * This value decides if this node must stay as a leaf or not
  * as allowed by draft-ietf-roll-rpl-19#section-8.5
  */
-#ifdef RPL_CONF_LEAF_ONLY
-#define RPL_LEAF_ONLY RPL_CONF_LEAF_ONLY
+#ifdef RPL_CONF_DEFAULT_LEAF_ONLY
+#define RPL_DEFAULT_LEAF_ONLY RPL_CONF_DEFAULT_LEAF_ONLY
 #else
-#define RPL_LEAF_ONLY 0
+#define RPL_DEFAULT_LEAF_ONLY 0
+#endif
+
+/*
+ * Function used to validate dio before using it to init dag
+ */
+#ifdef RPL_CONF_VALIDATE_DIO_FUNC
+#define RPL_VALIDATE_DIO_FUNC RPL_CONF_VALIDATE_DIO_FUNC
 #endif
 
 /******************************************************************************/
@@ -265,7 +272,7 @@
 #ifdef RPL_CONF_DAG_LIFETIME
 #define RPL_DAG_LIFETIME                RPL_CONF_DAG_LIFETIME
 #else
-#define RPL_DAG_LIFETIME                (60 * 60) /* one hour */
+#define RPL_DAG_LIFETIME                (8 * 60) /* 8 hours */
 #endif /* RPL_CONF_DAG_LIFETIME */
 
 /*
@@ -388,6 +395,16 @@
 #endif /* RPL_CALLBACK_NEW_DIO_INTERVAL */
 
 #endif /* MAC_CONF_WITH_TSCH */
+
+/* Set to 1 to drop packets when a forwarding loop is detected
+ * on a packet that already had an error signaled, as per RFC6550 - 11.2.2.2.
+ * Disabled by default for more reliability: even in the event of a loop,
+ * packets get a chance to eventually find their way to the destination. */
+#ifdef RPL_CONF_LOOP_ERROR_DROP
+#define RPL_LOOP_ERROR_DROP RPL_CONF_LOOP_ERROR_DROP
+#else /* RPL_CONF_LOOP_ERROR_DROP */
+#define RPL_LOOP_ERROR_DROP 0
+#endif /* RPL_CONF_LOOP_ERROR_DROP */
 
 /** @} */
 

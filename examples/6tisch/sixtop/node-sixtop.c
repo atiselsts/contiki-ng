@@ -38,7 +38,7 @@
  */
 
 #include "contiki.h"
-#include "node-id.h"
+#include "sys/node-id.h"
 #include "sys/log.h"
 #include "net/ipv6/uip-ds6-route.h"
 #include "net/mac/tsch/tsch.h"
@@ -88,10 +88,10 @@ PROCESS_THREAD(node_process, ev, data)
     if(!is_coordinator) {
       if((added_num_of_links == 1) || (added_num_of_links == 3)) {
         printf("App : Add a link\n");
-        sf_simple_add_links(&n->addr, 1);
+        sf_simple_add_links(tsch_queue_get_nbr_address(n), 1);
       } else if(added_num_of_links == 5) {
         printf("App : Delete a link\n");
-        sf_simple_remove_links(&n->addr);
+        sf_simple_remove_links(tsch_queue_get_nbr_address(n));
       }
       added_num_of_links++;
     }
