@@ -121,6 +121,10 @@ timesync_learn_drift_ticks(uint32_t time_delta_asn, int32_t drift_ticks)
 void
 tsch_timesync_update(struct tsch_neighbor *n, uint16_t time_delta_asn, int32_t drift_correction)
 {
+  // TSCH_LOG_ADD(tsch_log_message,
+  //     snprintf(log->message, sizeof(log->message),
+  //         "update delta=%u", time_delta_asn));
+
   /* Account the drift if either this is a new timesource,
    * or the timedelta is not too small, as smaller timedelta
    * means proportionally larger measurement error. */
@@ -161,6 +165,12 @@ compensate_internal(uint32_t time_delta_usec, int32_t drift_ppm, int32_t *remain
         snprintf(log->message, sizeof(log->message),
             "!too big compensation %ld delta %ld", (long int)amount_ticks, (long int)time_delta_usec));
     amount_ticks = (amount_ticks > 0 ? RTIMER_ARCH_SECOND : -RTIMER_ARCH_SECOND) / 128;
+  }
+
+  if (amount_ticks) {
+    TSCH_LOG_ADD(tsch_log_message,
+        snprintf(log->message, sizeof(log->message),
+            "compensation %ld delta %ld", (long int)amount_ticks, (long int)time_delta_usec));
   }
 
   return amount_ticks;

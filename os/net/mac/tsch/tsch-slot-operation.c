@@ -1099,6 +1099,13 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
                 "! leaving the network, last sync %u",
                           (unsigned)TSCH_ASN_DIFF(tsch_current_asn, last_sync_asn));
       );
+      TSCH_LOG_ADD(tsch_log_message,
+          snprintf(log->message, sizeof(log->message),
+              "asn=%u last=%u desync=%u timing=%u slots=%u",
+              (unsigned)tsch_current_asn.ls4b, (unsigned)last_sync_asn.ls4b,
+              (unsigned)TSCH_DESYNC_THRESHOLD,
+              (unsigned)tsch_timing[tsch_ts_timeslot_length],
+              (unsigned)TSCH_CLOCK_TO_SLOTS(TSCH_DESYNC_THRESHOLD / 100, tsch_timing[tsch_ts_timeslot_length])));
       tsch_disassociate();
     } else {
       /* backup of drift correction for printing debug messages */

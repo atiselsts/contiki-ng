@@ -62,6 +62,12 @@ PROCESS_THREAD(node_process, ev, data)
 
 #if CONTIKI_TARGET_COOJA || CONTIKI_TARGET_Z1
   is_coordinator = (node_id == 1);
+#elif DEVICE_CC1312R
+  is_coordinator = (node_id != 63117);
+#elif DEVICE_CC1352R
+  is_coordinator = 0;
+#elif DEVICE_CC1352P
+  is_coordinator = (node_id == 10394);
 #endif
 
   if(is_coordinator) {

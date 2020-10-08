@@ -76,11 +76,6 @@
 #define RADIO_PHY_OVERHEAD   CC13XX_RADIO_PHY_OVERHEAD
 #define RADIO_BIT_RATE       CC13XX_RADIO_BIT_RATE
 
-/* The TSCH default slot length of 10ms is too short, use custom one instead */
-#ifndef TSCH_CONF_DEFAULT_TIMESLOT_TIMING
-#define TSCH_CONF_DEFAULT_TIMESLOT_TIMING tsch_timing_cc13xx_50kbps
-#endif /* TSCH_CONF_DEFAULT_TIMESLOT_TIMING */
-
 /* Symbol for the custom TSCH timeslot timing template */
 #define TSCH_CONF_ARCH_HDR_PATH "rf/cc13xx-50kbps-tsch.h"
 
@@ -132,7 +127,7 @@
  * Target - real duration = -8.544922 usec
  * PPM -8.544922 / 40000 = -0.000214
  */
-#define TSCH_CONF_BASE_DRIFT_PPM -214
+#define TSCH_CONF_BASE_DRIFT_PPM 0 //-214
 #else /* defined(DEVICE_LINE_CC13XX) */
 /*
  * The drift compared to "true" 10ms slots.
@@ -144,7 +139,7 @@
  * Target - real duration = -9.765625 usec
  * TSCH_CONF_BASE_DRIFT_PPM -977
  */
-#define TSCH_CONF_BASE_DRIFT_PPM -977
+#define TSCH_CONF_BASE_DRIFT_PPM 0 //-977
 #endif /* defined(DEVICE_LINE_CC13XX) */
 #endif /* TSCH_CONF_BASE_DRIFT_PPM */
 

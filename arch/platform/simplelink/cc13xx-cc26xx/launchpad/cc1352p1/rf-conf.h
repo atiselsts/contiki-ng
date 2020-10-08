@@ -60,7 +60,13 @@
 
 #define RF_2_4_GHZ_CONF_FRONT_END_MODE    RF_FRONT_END_MODE_DIFFERENTIAL
 #define RF_2_4_GHZ_CONF_BIAS_MODE         RF_BIAS_MODE_EXTERNAL
+
 /** @} */
+
+/* From Andres Blanco @ TI */
+#define SET_CCFG_MODE_CONF_XOSC_CAP_MOD 0x0
+#define SET_CCFG_MODE_CONF_XOSC_CAPARRAY_DELTA 0xC1
+
 /*---------------------------------------------------------------------------*/
 #endif /* RF_CONF_H_ */
 /*---------------------------------------------------------------------------*/

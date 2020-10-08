@@ -217,9 +217,11 @@ tsch_reset(void)
   current_link = NULL;
   /* Reset timeslot timing to defaults */
   tsch_default_timing_us = TSCH_DEFAULT_TIMESLOT_TIMING;
+  printf("set default timing\n");
   for(i = 0; i < tsch_ts_elements_count; i++) {
     tsch_timing_us[i] = tsch_default_timing_us[i];
     tsch_timing[i] = US_TO_RTIMERTICKS(tsch_timing_us[i]);
+    printf("  tsch_timing[%u]=%u\n", i, (unsigned)tsch_timing[i]);
   }
 #ifdef TSCH_CALLBACK_LEAVING_NETWORK
   TSCH_CALLBACK_LEAVING_NETWORK();
@@ -633,6 +635,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   }
 
   /* TSCH timeslot timing */
+  printf("set tsch_timing from EB\n");
   for(i = 0; i < tsch_ts_elements_count; i++) {
     if(ies.ie_tsch_timeslot_id == 0) {
       tsch_timing_us[i] = tsch_default_timing_us[i];
@@ -640,6 +643,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
       tsch_timing_us[i] = ies.ie_tsch_timeslot[i];
     }
     tsch_timing[i] = US_TO_RTIMERTICKS(tsch_timing_us[i]);
+    printf("  tsch_timing[%u]=%u\n", i, (unsigned)tsch_timing[i]);
   }
 
   /* TSCH hopping sequence */
@@ -918,6 +922,8 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
     } else if(tsch_queue_nbr_packet_count(n_eb) != 0) {
       /* Enqueue EB only if there isn't already one in queue */
       LOG_DBG("skip sending EB: already queued\n");
+    } else if(!tsch_is_coordinator) {
+      /* skip if not the coordinator */
     } else {
       uint8_t hdr_len = 0;
       uint8_t tsch_sync_ie_offset;
@@ -938,8 +944,8 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
     if(tsch_current_eb_period > 0) {
       /* Next EB transmission with a random delay
        * within [tsch_current_eb_period*0.75, tsch_current_eb_period[ */
-      delay = (tsch_current_eb_period - tsch_current_eb_period / 4)
-        + random_rand() % (tsch_current_eb_period / 4);
+      delay = tsch_current_eb_period; //(tsch_current_eb_period - tsch_current_eb_period / 4)
+          //+ random_rand() % (tsch_current_eb_period / 4);
     } else {
       delay = TSCH_EB_PERIOD;
     }
@@ -979,6 +985,8 @@ tsch_init(void)
   radio_value_t radio_max_payload_len;
 
   rtimer_clock_t t;
+
+  printf("base drift=%d\n", TSCH_CONF_BASE_DRIFT_PPM);
 
   /* Check that the platform provides a TSCH timeslot timing template */
   if(TSCH_DEFAULT_TIMESLOT_TIMING == NULL) {

@@ -158,6 +158,9 @@ static volatile uint8_t is_receiving_packet;
  * Offset of the end of SFD when compared to the radio HW-generated timestamp.
  */
 #define RAT_TIMESTAMP_OFFSET    USEC_TO_RAT(RADIO_PHY_HEADER_LEN * RADIO_BYTE_AIR_TIME - 270)
+// for 1352p1 version
+//#define RAT_TIMESTAMP_OFFSET    USEC_TO_RAT(RADIO_PHY_HEADER_LEN * RADIO_BYTE_AIR_TIME - 160)
+//#define RAT_TIMESTAMP_OFFSET    USEC_TO_RAT(650)
 /*---------------------------------------------------------------------------*/
 /* TX buf configuration */
 #define TX_BUF_HDR_LEN          2
@@ -906,6 +909,9 @@ init(void)
     LOG_WARN("Radio is already initialized\n");
     return RF_RESULT_OK;
   }
+
+  printf("RADIO_PHY_HEADER_LEN * RADIO_BYTE_AIR_TIME=%u\n",
+      (unsigned)(RADIO_PHY_HEADER_LEN * RADIO_BYTE_AIR_TIME));
 
   /* RX is off */
   prop_radio.rf_is_on = false;

@@ -193,6 +193,11 @@
 #define CSMA_CONF_AFTER_ACK_DETECTED_WAIT_TIME (RTIMER_SECOND / 1000)
 #define CSMA_CONF_SEND_SOFT_ACK      1
 
+/* The TSCH default slot length of 10ms is too short, use custom one instead */
+#ifndef TSCH_CONF_DEFAULT_TIMESLOT_TIMING
+#define TSCH_CONF_DEFAULT_TIMESLOT_TIMING tsch_timing_cc13xx_50kbps
+#endif /* TSCH_CONF_DEFAULT_TIMESLOT_TIMING */
+
 /*----- CC13xx IEEE-mode ----------------------------------------------------*/
 #elif (RF_MODE == RF_MODE_2_4_GHZ) && (SUPPORTS_IEEE_MODE)
 

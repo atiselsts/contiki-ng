@@ -56,7 +56,7 @@
 
 /* 6TiSCH minimal schedule length.
  * Larger values result in less frequent active slots: reduces capacity and saves energy. */
-#define TSCH_SCHEDULE_CONF_DEFAULT_LENGTH 3
+#define TSCH_SCHEDULE_CONF_DEFAULT_LENGTH 29
 
 #if WITH_SECURITY
 
@@ -75,7 +75,24 @@
 #define LOG_CONF_LEVEL_IPV6                        LOG_LEVEL_WARN
 #define LOG_CONF_LEVEL_6LOWPAN                     LOG_LEVEL_WARN
 #define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_FRAMER                      LOG_LEVEL_WARN
+//#define LOG_CONF_LEVEL_FRAMER                      LOG_LEVEL_WARN
 #define TSCH_LOG_CONF_PER_SLOT                     1
+
+#define TSCH_CONF_DEFAULT_HOPPING_SEQUENCE TSCH_HOPPING_SEQUENCE_1_1
+
+#define TSCH_CONF_EB_PERIOD     (CLOCK_SECOND * 4)
+#define TSCH_CONF_MAX_EB_PERIOD (CLOCK_SECOND * 4)
+
+#define TSCH_CONF_KEEPALIVE_TIMEOUT      (2 * CLOCK_SECOND)
+#define TSCH_CONF_MAX_KEEPALIVE_TIMEOUT  (2 * CLOCK_SECOND)
+
+// for 1352P1
+#define TSCH_CONF_RX_WAIT 3200
+
+#define TSCH_CONF_ADAPTIVE_TIMESYNC 1
+
+#define TSCH_CONF_DESYNC_THRESHOLD (10 * CLOCK_SECOND)
+
+#define RF_CONF_MODE RF_MODE_2_4_GHZ
 
 #endif /* PROJECT_CONF_H_ */
