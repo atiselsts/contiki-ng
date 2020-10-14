@@ -200,6 +200,7 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
       /* Currently receiving a packet over air or the radio has
          already received a packet that needs to be read before
          sending with auto ack. */
+      printf("Currently receiving a packet\n");
       ret = MAC_TX_COLLISION;
     } else {
 
@@ -231,6 +232,7 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
               } else {
                 /* Not an ack or ack not for us: collision */
                 ret = MAC_TX_COLLISION;
+                printf("Not an ack or ack not for us: collision\n");
               }
             }
           }

@@ -119,6 +119,7 @@
 #define PROP_MODE_RSSI_THRESHOLD PROP_MODE_CONF_RSSI_THRESHOLD
 #else
 #define PROP_MODE_RSSI_THRESHOLD 0xA6
+//#define PROP_MODE_RSSI_THRESHOLD 0xB0
 #endif
 
 static int8_t rssi_threshold = PROP_MODE_RSSI_THRESHOLD;
@@ -967,6 +968,7 @@ channel_clear(void)
     off();
   }
 
+//  printf("rssi=%d threshold=%d\n", rssi, rssi_threshold);
   if(rssi >= rssi_threshold) {
     return RF_CORE_CCA_BUSY;
   }
@@ -1031,6 +1033,7 @@ receiving_packet(void)
     return 0;
   }
 
+//  printf("channel not clear\n");
   return 1;
 
 #endif

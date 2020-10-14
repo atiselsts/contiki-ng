@@ -167,11 +167,11 @@ compensate_internal(uint32_t time_delta_usec, int32_t drift_ppm, int32_t *remain
     amount_ticks = (amount_ticks > 0 ? RTIMER_ARCH_SECOND : -RTIMER_ARCH_SECOND) / 128;
   }
 
-  if (amount_ticks) {
-    TSCH_LOG_ADD(tsch_log_message,
-        snprintf(log->message, sizeof(log->message),
-            "compensation %ld delta %ld", (long int)amount_ticks, (long int)time_delta_usec));
-  }
+  // if (amount_ticks) {
+  //   TSCH_LOG_ADD(tsch_log_message,
+  //       snprintf(log->message, sizeof(log->message),
+  //           "compensation %ld delta %ld", (long int)amount_ticks, (long int)time_delta_usec));
+  // }
 
   return amount_ticks;
 }

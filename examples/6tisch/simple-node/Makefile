@@ -6,15 +6,15 @@ PLATFORMS_EXCLUDE = sky nrf52dk native
 CONTIKI=../../..
 
  # force Orchestra from command line
-MAKE_WITH_ORCHESTRA ?= 0
+MAKE_WITH_ORCHESTRA ?= 1
 # force Security from command line
 MAKE_WITH_SECURITY ?= 0
  # print #routes periodically, used for regression tests
 MAKE_WITH_PERIODIC_ROUTES_PRINT ?= 0
 # RPL storing mode?
-MAKE_WITH_STORING_ROUTING ?= 0
+MAKE_WITH_STORING_ROUTING ?= 1
 # Orchestra link-based rule? (Works only if Orchestra & storing mode routing is enabled)
-MAKE_WITH_LINK_BASED_ORCHESTRA ?= 0
+MAKE_WITH_LINK_BASED_ORCHESTRA ?= 1
 
 MAKE_MAC = MAKE_MAC_TSCH
 

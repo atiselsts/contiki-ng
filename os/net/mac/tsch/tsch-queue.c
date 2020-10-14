@@ -428,7 +428,7 @@ tsch_queue_get_packet_for_nbr(const struct tsch_neighbor *n, struct tsch_link *l
           }
           if(backup_link != NULL && packet_attr_slotframe != backup_link->slotframe_handle) {
             /* Filter out by backup link: prefer receiving packets from another slotframe to sending packets */
-            return NULL;
+            //return NULL;
           }
         }
         if(packet_attr_timeslot != 0xffff && packet_attr_timeslot != link->timeslot) {

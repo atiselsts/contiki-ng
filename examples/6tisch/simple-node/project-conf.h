@@ -74,7 +74,7 @@
 #define LOG_CONF_LEVEL_TCPIP                       LOG_LEVEL_WARN
 #define LOG_CONF_LEVEL_IPV6                        LOG_LEVEL_WARN
 #define LOG_CONF_LEVEL_6LOWPAN                     LOG_LEVEL_WARN
-#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_DBG
 //#define LOG_CONF_LEVEL_FRAMER                      LOG_LEVEL_WARN
 #define TSCH_LOG_CONF_PER_SLOT                     1
 
@@ -87,12 +87,24 @@
 #define TSCH_CONF_MAX_KEEPALIVE_TIMEOUT  (2 * CLOCK_SECOND)
 
 // for 1352P1
-#define TSCH_CONF_RX_WAIT 3200
+//#define TSCH_CONF_RX_WAIT 3000
+#define TSCH_CONF_RX_WAIT 1800
+
+//#define TSCH_CONF_RX_WAIT 3000
 
 #define TSCH_CONF_ADAPTIVE_TIMESYNC 1
 
 #define TSCH_CONF_DESYNC_THRESHOLD (10 * CLOCK_SECOND)
 
-#define RF_CONF_MODE RF_MODE_2_4_GHZ
+//#define RF_CONF_MODE RF_MODE_2_4_GHZ
+
+#define TSCH_CONF_BASE_DRIFT_PPM 0
+
+/* Enable printing of packet counters */
+#define LINK_STATS_CONF_PACKET_COUNTERS          1
+
+#define ORCHESTRA_CONF_EBSF_PERIOD                67
+
+//#define PROP_MODE_CONF_CCA_RSSI_THRESHOLD   0xB0
 
 #endif /* PROJECT_CONF_H_ */
