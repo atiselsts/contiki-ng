@@ -62,6 +62,8 @@ PROCESS_THREAD(node_process, ev, data)
 
 #if CONTIKI_TARGET_COOJA || CONTIKI_TARGET_Z1
   is_coordinator = (node_id == 1);
+#else
+  is_coordinator = (node_id == 12345);
 #endif
 
   if(is_coordinator) {

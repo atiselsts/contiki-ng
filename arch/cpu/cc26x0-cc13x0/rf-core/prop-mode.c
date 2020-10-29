@@ -78,7 +78,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 /*---------------------------------------------------------------------------*/
-#define DEBUG 0
+#define DEBUG 1
 #if DEBUG
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -122,7 +122,12 @@
 #endif
 
 static int8_t rssi_threshold = PROP_MODE_RSSI_THRESHOLD;
+//static uint32_t channel_spacing = 200;
+uint32_t chan0_freq = 883100;
+/* channel related */
+uint8_t DOT_15_4G_CHANNEL_MAX = 50;
 /*---------------------------------------------------------------------------*/
+#define MAC_CONF_WITH_TSCH 1
 #if MAC_CONF_WITH_TSCH
 static volatile uint8_t is_receiving_packet;
 #endif
@@ -202,7 +207,7 @@ extern const prop_mode_tx_power_config_t TX_POWER_DRIVER[];
 #define OUTPUT_POWER_UNKNOWN 0xFFFF
 
 /* Default TX Power - position in output_power[] */
-static const prop_mode_tx_power_config_t *tx_power_current = &TX_POWER_DRIVER[1];
+static const prop_mode_tx_power_config_t *tx_power_current = &TX_POWER_DRIVER[0];
 /*---------------------------------------------------------------------------*/
 #ifdef PROP_MODE_CONF_LO_DIVIDER
 #define PROP_MODE_LO_DIVIDER   PROP_MODE_CONF_LO_DIVIDER
@@ -263,6 +268,7 @@ volatile static uint8_t *rx_read_entry;
 
 static uint8_t tx_buf[TX_BUF_HDR_LEN + TX_BUF_PAYLOAD_LEN] CC_ALIGN(4);
 /*---------------------------------------------------------------------------*/
+
 static uint8_t
 rf_is_on(void)
 {
@@ -292,7 +298,7 @@ get_rssi(void)
   if(!rf_is_on()) {
     was_off = 1;
     if(on() != RF_CORE_CMD_OK) {
-      PRINTF("get_rssi: on() failed\n");
+      PRINTF("prop-mode: get_rssi: on() failed\n");
       return RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN;
     }
   }
@@ -302,9 +308,10 @@ get_rssi(void)
   while((rssi == RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN || rssi == 0) && ++attempts < 10) {
     memset(&cmd, 0x00, sizeof(cmd));
     cmd.commandNo = CMD_GET_RSSI;
+    clock_delay_usec(500);
 
     if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-      PRINTF("get_rssi: CMDSTA=0x%08lx\n", cmd_status);
+      PRINTF("prop-mode:  get_rssi: CMDSTA=0x%08lx\n", cmd_status);
       break;
     } else {
       /* Current RSSI in bits 23:16 of cmd_status */
@@ -314,6 +321,7 @@ get_rssi(void)
 
   /* If we were off, turn back off */
   if(was_off) {
+    printf("prop-mode: get_rssi off\r\n");
     off();
   }
 
@@ -338,8 +346,8 @@ get_channel(void)
   return (freq_khz - DOT_15_4G_CHAN0_FREQUENCY) / DOT_15_4G_CHANNEL_SPACING;
 }
 /*---------------------------------------------------------------------------*/
-static void
-set_channel(uint8_t channel)
+void
+set_channel(uint16_t channel)
 {
   uint32_t new_freq;
   uint16_t freq, frac;
@@ -349,8 +357,8 @@ set_channel(uint8_t channel)
   freq = (uint16_t)(new_freq / 1000);
   frac = (new_freq - (freq * 1000)) * 65536 / 1000;
 
-  PRINTF("set_channel: %u = 0x%04x.0x%04x (%lu)\n", channel, freq, frac,
-         new_freq);
+  // PRINTF("set_channel: %u = 0x%04x.0x%04x (%lu)\n", channel, freq, frac,
+  //         new_freq);
 
   smartrf_settings_cmd_prop_radio_div_setup.centerFreq = freq;
   smartrf_settings_cmd_fs.frequency = freq;
@@ -371,7 +379,7 @@ get_tx_power_array_last_element(void)
 }
 /*---------------------------------------------------------------------------*/
 /* Returns the current TX power in dBm */
-static radio_value_t
+radio_value_t
 get_tx_power(void)
 {
   return tx_power_current->dbm;
@@ -385,16 +393,14 @@ static void
 set_tx_power(radio_value_t power)
 {
   int i;
-
-  for(i = get_tx_power_array_last_element(); i >= 0; --i) {
-    if(power <= TX_POWER_DRIVER[i].dbm) {
+  for(i = 0; i <= get_tx_power_array_last_element(); i++) {
+    if(power >= TX_POWER_DRIVER[i].dbm) {
       /*
        * Merely save the value. It will be used in all subsequent usages of
        * CMD_PROP_RADIO_DIV_SETP, including one immediately after this function
        * has returned
        */
       tx_power_current = &TX_POWER_DRIVER[i];
-
       return;
     }
   }
@@ -422,14 +428,14 @@ prop_div_radio_setup(void)
 
   /* Send Radio setup to RF Core */
   if(rf_core_send_cmd((uint32_t)cmd, &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("prop_div_radio_setup: DIV_SETUP, CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  prop_div_radio_setup: DIV_SETUP, CMDSTA=0x%08lx, status=0x%04x\n",
            cmd_status, cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until radio setup is done */
   if(rf_core_wait_cmd_done(cmd) != RF_CORE_CMD_OK) {
-    PRINTF("prop_div_radio_setup: DIV_SETUP wait, CMDSTA=0x%08lx,"
+    PRINTF("prop-mode:  prop_div_radio_setup: DIV_SETUP wait, CMDSTA=0x%08lx,"
            "status=0x%04x\n", cmd_status, cmd->status);
     return RF_CORE_CMD_ERROR;
   }
@@ -461,7 +467,7 @@ rf_cmd_prop_rx()
   ret = rf_core_send_cmd((uint32_t)cmd_rx_adv, &cmd_status);
 
   if(ret != RF_CORE_CMD_OK) {
-    PRINTF("rf_cmd_prop_rx: send_cmd ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  rf_cmd_prop_rx: send_cmd ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
            ret, cmd_status, cmd_rx_adv->status);
     return RF_CORE_CMD_ERROR;
   }
@@ -471,7 +477,7 @@ rf_cmd_prop_rx()
 
   /* Wait to enter RX */
   if(cmd_rx_adv->status != RF_CORE_RADIO_OP_STATUS_ACTIVE) {
-    PRINTF("rf_cmd_prop_rx: CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  rf_cmd_prop_rx: CMDSTA=0x%08lx, status=0x%04x\n",
            cmd_status, cmd_rx_adv->status);
     return RF_CORE_CMD_ERROR;
   }
@@ -503,8 +509,8 @@ rx_on_prop(void)
   int ret;
 
   if(rf_is_on()) {
-    PRINTF("rx_on_prop: We were on. PD=%u, RX=0x%04x\n",
-           rf_core_is_accessible(), smartrf_settings_cmd_prop_rx_adv.status);
+    // PRINTF("rx_on_prop: We were on. PD=%u, RX=0x%04x\n",
+    //        rf_core_is_accessible(), smartrf_settings_cmd_prop_rx_adv.status);
     return RF_CORE_CMD_OK;
   }
 
@@ -513,6 +519,8 @@ rx_on_prop(void)
 
   if(ret) {
     ENERGEST_ON(ENERGEST_TYPE_LISTEN);
+  } else {
+    PRINTF("prop-mode: radio rx mode failed %d\r\n", ret);
   }
 
   return ret;
@@ -534,7 +542,7 @@ rx_off_prop(void)
 
   /* Send a CMD_ABORT command to RF Core */
   if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("rx_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
+    PRINTF("prop-mode:  rx_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
     /* Continue nonetheless */
   }
 
@@ -546,7 +554,7 @@ rx_off_prop(void)
     ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
     ret = RF_CORE_CMD_OK;
   } else {
-    PRINTF("rx_off_prop: status=0x%04x\n",
+    PRINTF("prop-mode:  rx_off_prop: status=0x%04x\n",
            smartrf_settings_cmd_prop_rx_adv.status);
     ret = RF_CORE_CMD_ERROR;
   }
@@ -578,14 +586,14 @@ prop_fs(void)
 
   /* Send the command to the RF Core */
   if(rf_core_send_cmd((uint32_t)cmd, &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("prop_fs: CMD_FS, CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  prop_fs: CMD_FS, CMDSTA=0x%08lx, status=0x%04x\n",
            cmd_status, cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until the command is done */
   if(rf_core_wait_cmd_done(cmd) != RF_CORE_CMD_OK) {
-    PRINTF("prop_fs: CMD_FS wait, CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  prop_fs: CMD_FS wait, CMDSTA=0x%08lx, status=0x%04x\n",
            cmd_status, cmd->status);
     return RF_CORE_CMD_ERROR;
   }
@@ -605,7 +613,7 @@ soft_off_prop(void)
 
   /* Send a CMD_ABORT command to RF Core */
   if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("soft_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
+    PRINTF("prop-mode:  soft_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
     return;
   }
 
@@ -617,12 +625,12 @@ static uint8_t
 soft_on_prop(void)
 {
   if(prop_div_radio_setup() != RF_CORE_CMD_OK) {
-    PRINTF("soft_on_prop: prop_div_radio_setup() failed\n");
+    PRINTF("prop-mode:  soft_on_prop: prop_div_radio_setup() failed\n");
     return RF_CORE_CMD_ERROR;
   }
 
   if(prop_fs() != RF_CORE_CMD_OK) {
-    PRINTF("soft_on_prop: prop_fs() failed\n");
+    PRINTF("prop-mode:  soft_on_prop: prop_fs() failed\n");
     return RF_CORE_CMD_ERROR;
   }
 
@@ -645,6 +653,10 @@ init(void)
     return RF_CORE_CMD_ERROR;
   }
 
+  //* if CPU reset during radio active, ensure radio is downed, to avoid
+  //    concurent access to uninitialised buffers
+  //rf_core_power_down();
+
   /* Initialise RX buffers */
   memset(rx_buf, 0, sizeof(rx_buf));
 
@@ -661,7 +673,7 @@ init(void)
   set_channel(IEEE802154_DEFAULT_CHANNEL);
 
   if(on() != RF_CORE_CMD_OK) {
-    PRINTF("init: on() failed\n");
+    PRINTF("prop-mode:  init: on() failed\n");
     return RF_CORE_CMD_ERROR;
   }
 
@@ -699,14 +711,14 @@ transmit(unsigned short transmit_len)
   uint16_t total_length;
 
   if(transmit_len > MAX_PAYLOAD_LEN) {
-    PRINTF("transmit: too long\n");
+    PRINTF("prop-mode:  transmit: too long\n");
     return RADIO_TX_ERR;
   }
 
   if(!rf_is_on()) {
     was_off = 1;
     if(on() != RF_CORE_CMD_OK) {
-      PRINTF("transmit: on() failed\n");
+      PRINTF("prop-mode:  transmit: on() failed\n");
       return RADIO_TX_ERR;
     }
   }
@@ -746,31 +758,45 @@ transmit(unsigned short transmit_len)
     /* If we enter here, TX actually started */
     ENERGEST_SWITCH(ENERGEST_TYPE_LISTEN, ENERGEST_TYPE_TRANSMIT);
 
+    PRINTF("YILI:1\r\n");
     /* Idle away while the command is running */
-    while((cmd_tx_adv->status & RF_CORE_RADIO_OP_MASKED_STATUS)
-          == RF_CORE_RADIO_OP_MASKED_STATUS_RUNNING) {
-      /* Note: for now sleeping while Tx'ing in polling mode is disabled.
-       * To enable it:
-       *  1) make the `lpm_sleep()` call here unconditional;
-       *  2) change the radio ISR priority to allow radio ISR to interrupt rtimer ISR.
-       */
-      if(!rf_core_poll_mode) {
-        lpm_sleep();
-      }
-    }
+    // Replacing the below while loop, with RTIMER_BUSYWAIT, as radio hangs and restarts here
+    RTIMER_BUSYWAIT_UNTIL((cmd_tx_adv->status & RF_CORE_RADIO_OP_MASKED_STATUS) !=
+                         RF_CORE_RADIO_OP_MASKED_STATUS_RUNNING, 1000 * RF_CORE_TURN_OFF_TIMEOUT);
+
+    // while((cmd_tx_adv->status & RF_CORE_RADIO_OP_MASKED_STATUS)
+    //       == RF_CORE_RADIO_OP_MASKED_STATUS_RUNNING) {
+    //   /* Note: for now sleeping while Tx'ing in polling mode is disabled.
+    //    * To enable it:
+    //    *  1) make the `lpm_sleep()` call here unconditional;
+    //    *  2) change the radio ISR priority to allow radio ISR to interrupt rtimer ISR.
+    //    */
+    //   if(!rf_core_poll_mode) {
+    //     printf("PM ");
+    //     lpm_sleep();
+    //   }
+    // }
 
     if(cmd_tx_adv->status == RF_CORE_RADIO_OP_STATUS_PROP_DONE_OK) {
       /* Sent OK */
       ret = RADIO_TX_OK;
     } else {
       /* Operation completed, but frame was not sent */
-      PRINTF("transmit: Not Sent OK status=0x%04x\n",
+      PRINTF("prop-mode:  transmit: Not Sent OK status=0x%04x\n",
              cmd_tx_adv->status);
       ret = RADIO_TX_ERR;
+      //abort running command in radio here...
+      /* Send a CMD_ABORT command to RF Core */
+      if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
+        PRINTF("prop-mode:  transmit: CMD_ABORT status=0x%08lx\n", cmd_status);
+        /* Continue nonetheless */
+      } else {
+        PRINTF("prop-mode:  transmit: CMD_ABORT success\r\n");
+      }
     }
   } else {
     /* Failure sending the CMD_PROP_TX command */
-    PRINTF("transmit: PROP_TX_ERR ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
+    PRINTF("prop-mode:  transmit: PROP_TX_ERR ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
            ret, cmd_status, cmd_tx_adv->status);
     ret = RADIO_TX_ERR;
   }
@@ -793,6 +819,7 @@ transmit(unsigned short transmit_len)
   rx_on_prop();
 
   if(was_off) {
+    printf("prop-mode: off()\r\n");
     off();
   }
 
@@ -824,7 +851,7 @@ release_data_entry(void)
   interrupt_status = critical_enter();
   if(rf_core_rx_is_full) {
     rf_core_rx_is_full = false;
-    PRINTF("RXQ was full, re-enabling radio!\n");
+    PRINTF("prop-mode:  RXQ was full, re-enabling radio!\n");
     rx_on_prop();
   }
   critical_exit(interrupt_status);
@@ -883,7 +910,7 @@ read_frame(void *buf, unsigned short buf_len)
   len = (*(uint16_t *)data_ptr);
 
   if(len <= RX_BUF_METADATA_SIZE) {
-    PRINTF("RF: too short!");
+    PRINTF("prop-mode:  RF: too short!");
 
     release_data_entry();
     return 0;
@@ -893,7 +920,7 @@ read_frame(void *buf, unsigned short buf_len)
   len -= RX_BUF_METADATA_SIZE;
 
   if(len > buf_len) {
-    PRINTF("RF: too long\n");
+    PRINTF("prop-mode:  RF: too long\n");
 
     release_data_entry();
     return 0;
@@ -934,6 +961,7 @@ channel_clear(void)
    * If we are in the middle of a BLE operation, we got called by ContikiMAC
    * from within an interrupt context. Indicate a clear channel
    */
+
   if(rf_ble_is_active() == RF_BLE_ACTIVE) {
     return RF_CORE_CCA_CLEAR;
   }
@@ -941,7 +969,7 @@ channel_clear(void)
   if(!rf_core_is_accessible()) {
     was_off = 1;
     if(on() != RF_CORE_CMD_OK) {
-      PRINTF("channel_clear: on() failed\n");
+      PRINTF("prop-mode:  channel_clear: on() failed\n");
       if(was_off) {
         off();
       }
@@ -949,7 +977,7 @@ channel_clear(void)
     }
   } else {
     if(transmitting()) {
-      PRINTF("channel_clear: called while in TX\n");
+      PRINTF("prop-mode:  channel_clear: called while in TX\n");
       return RF_CORE_CCA_CLEAR;
     }
   }
@@ -957,6 +985,7 @@ channel_clear(void)
   while(rssi == RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN || rssi == 0) {
     if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_GET_RSSI), &cmd_status)
        != RF_CORE_CMD_OK) {
+        PRINTF("prop-mode:  channel_clear: RF_CORE_CMD_OK Failed\n");
       break;
     }
     /* Current RSSI in bits 23:16 of cmd_status */
@@ -964,6 +993,7 @@ channel_clear(void)
   }
 
   if(was_off) {
+    printf("cc\r\n");
     off();
   }
 
@@ -1071,11 +1101,11 @@ on(void)
   }
 
   if(rf_is_on()) {
-    PRINTF("on: We were on. PD=%u, RX=0x%04x \n", rf_core_is_accessible(),
-           smartrf_settings_cmd_prop_rx_adv.status);
+    // PRINTF("on: We were on. PD=%u, RX=0x%04x \n", rf_core_is_accessible(),
+    //        smartrf_settings_cmd_prop_rx_adv.status);
     return RF_CORE_CMD_OK;
   }
-
+  
   /*
    * Request the HF XOSC as the source for the HF clock. Needed before we can
    * use the FS. This will only request, it will _not_ perform the switch.
@@ -1084,7 +1114,7 @@ on(void)
 
   if(!rf_core_is_accessible()) {
     if(rf_core_power_up() != RF_CORE_CMD_OK) {
-      PRINTF("on: rf_core_power_up() failed\n");
+      PRINTF("prop-mode:  on: rf_core_power_up() failed\n");
 
       rf_core_power_down();
 
@@ -1095,10 +1125,12 @@ on(void)
     rf_core_set_modesel();
 
     /* Apply patches to radio core */
-    rf_patch_cpe_genfsk();
+    RF_prop.cpePatchFxn();
+    RF_prop.mcePatchFxn();
     while(!HWREG(RFC_DBELL_BASE + RFC_DBELL_O_RFACKIFG));
     HWREG(RFC_DBELL_BASE + RFC_DBELL_O_RFACKIFG) = 0;
-    rf_patch_rfe_genfsk();
+    RF_prop.rfePatchFxn();
+
 
     /* Initialize bus request */
     HWREG(RFC_DBELL_BASE + RFC_DBELL_O_RFACKIFG) = 0;
@@ -1116,7 +1148,7 @@ on(void)
     HWREG(RFC_DBELL_BASE + RFC_DBELL_O_RFACKIFG) = 0;
 
     if(rf_core_start_rat() != RF_CORE_CMD_OK) {
-      PRINTF("on: rf_core_start_rat() failed\n");
+      PRINTF("prop-mode:  on: rf_core_start_rat() failed\n");
 
       rf_core_power_down();
 
@@ -1136,16 +1168,25 @@ on(void)
   oscillators_switch_to_hf_xosc();
 
   if(prop_div_radio_setup() != RF_CORE_CMD_OK) {
-    PRINTF("on: prop_div_radio_setup() failed\n");
+    PRINTF("prop-mode:  on: prop_div_radio_setup() failed\n");
+    rf_core_power_down();
     return RF_CORE_CMD_ERROR;
   }
 
   if(prop_fs() != RF_CORE_CMD_OK) {
-    PRINTF("on: prop_fs() failed\n");
+    PRINTF("prop-mode:  on: prop_fs() failed\n");
+    rf_core_power_down();
     return RF_CORE_CMD_ERROR;
   }
-
-  return rx_on_prop();
+  
+  int ret_on_prop =  rx_on_prop();
+  if(ret_on_prop == RF_CORE_CMD_OK) {
+    return RF_CORE_CMD_OK;
+  } else {
+    PRINTF("prop-mode:  on: rx_on_prop() failed\n");
+    rf_core_power_down();
+    return RF_CORE_CMD_ERROR;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -1163,6 +1204,7 @@ off(void)
   }
 
   rx_off_prop();
+  printf("prop-mode:off\r\n");
   rf_core_power_down();
 
   ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
@@ -1290,12 +1332,13 @@ set_value(radio_param_t param, radio_value_t value)
   case RADIO_PARAM_POWER_MODE:
     if(value == RADIO_POWER_MODE_ON) {
       if(on() != RF_CORE_CMD_OK) {
-        PRINTF("set_value: on() failed (1)\n");
+        PRINTF("prop-mode:  set_value: on() failed (1)\n");
         return RADIO_RESULT_ERROR;
       }
       return RADIO_RESULT_OK;
     }
     if(value == RADIO_POWER_MODE_OFF) {
+      printf("set value off\r\n");
       off();
       return RADIO_RESULT_OK;
     }
@@ -1334,9 +1377,11 @@ set_value(radio_param_t param, radio_value_t value)
     return set_send_on_cca((value & RADIO_TX_MODE_SEND_ON_CCA) != 0);
 
   case RADIO_PARAM_TXPOWER:
-    if(value < TX_POWER_DRIVER[get_tx_power_array_last_element()].dbm ||
-       value > OUTPUT_POWER_MAX) {
-      return RADIO_RESULT_INVALID_VALUE;
+    if(value < TX_POWER_DRIVER[get_tx_power_array_last_element()].dbm) {
+      value = TX_POWER_DRIVER[get_tx_power_array_last_element()].dbm;
+    } else if (value > OUTPUT_POWER_MAX) {
+      //return RADIO_RESULT_INVALID_VALUE;
+      value = OUTPUT_POWER_MAX; // Modified to set possible MAX power, if unmatched
     }
 
     soft_off_prop();
@@ -1344,7 +1389,7 @@ set_value(radio_param_t param, radio_value_t value)
     set_tx_power(value);
 
     if(soft_on_prop() != RF_CORE_CMD_OK) {
-      PRINTF("set_value: soft_on_prop() failed\n");
+      PRINTF("prop-mode:  set_value: soft_on_prop() failed\n");
       rv = RADIO_RESULT_ERROR;
     }
 
@@ -1364,21 +1409,21 @@ set_value(radio_param_t param, radio_value_t value)
 
   /* If we reach here we had no errors. Apply new settings */
   if(rx_off_prop() != RF_CORE_CMD_OK) {
-    PRINTF("set_value: rx_off_prop() failed\n");
+    PRINTF("prop-mode:  set_value: rx_off_prop() failed\n");
     rv = RADIO_RESULT_ERROR;
   }
 
   /* Restart the radio timer (RAT).
      This causes resynchronization between RAT and RTC: useful for TSCH. */
   if(rf_core_restart_rat() != RF_CORE_CMD_OK) {
-    PRINTF("set_value: rf_core_restart_rat() failed\n");
+    PRINTF("prop-mode:  set_value: rf_core_restart_rat() failed\n");
     /* do not set the error */
   } else {
     rf_core_check_rat_overflow();
   }
 
   if(soft_on_prop() != RF_CORE_CMD_OK) {
-    PRINTF("set_value: soft_on_prop() failed\n");
+    PRINTF("prop-mode:  set_value: soft_on_prop() failed\n");
     rv = RADIO_RESULT_ERROR;
   }
 
@@ -1405,6 +1450,30 @@ set_object(radio_param_t param, const void *src, size_t size)
 {
   return RADIO_RESULT_NOT_SUPPORTED;
 }
+
+void set_chan0_freq(uint32_t val) {
+  chan0_freq = val;
+}
+
+uint32_t get_chan0_freq() {
+  return chan0_freq;
+}
+
+void set_channel_spacing(uint32_t val) {
+}
+
+uint32_t get_channel_spacing() {
+  return DOT_15_4G_CHANNEL_SPACING;
+}
+
+void set_num_of_channel(uint8_t chan_num) {
+  DOT_15_4G_CHANNEL_MAX = chan_num;
+}
+
+uint32_t get_num_of_channel() {
+  return DOT_15_4G_CHANNEL_MAX;
+}
+
 /*---------------------------------------------------------------------------*/
 const struct radio_driver prop_mode_driver = {
   init,
