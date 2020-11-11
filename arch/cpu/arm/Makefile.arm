@@ -8,6 +8,7 @@ endif
 
 CC       = arm-none-eabi-gcc
 CPP      = arm-none-eabi-cpp
+CXX      = arm-none-eabi-g++
 LD       = arm-none-eabi-gcc
 AR       = arm-none-eabi-ar
 AS       = arm-none-eabi-gcc
@@ -19,12 +20,12 @@ SREC_CAT = srec_cat
 
 CFLAGS += -mthumb -mabi=aapcs -mlittle-endian
 CFLAGS += -Wall
-CFLAGS += -std=c99
 CFLAGS += -ffunction-sections -fdata-sections -fno-strict-aliasing
 CFLAGS += -fshort-enums -fomit-frame-pointer -fno-builtin
 ifeq ($(WERROR),1)
   CFLAGS += -Werror
 endif
+CFLAGS += -std=c99
 
 ### Pass CFLAGS along to assembly files in the build
 ASFLAGS += $(CFLAGS)
