@@ -11,7 +11,7 @@ CFLAGS += -I$(TENSORFLOW)
 CFLAGS += -I/home/atis/source/tensorflow/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include
 
 LDFLAGS += -L.
-TARGET_LIBFILES += -ltensorflow-microlite
+TARGET_LIBFILES += -ltensorflow-microlite -lm
 
 CONTIKI = ../..
 include $(CONTIKI)/Makefile.include
