@@ -5,8 +5,8 @@
 extern "C" {
 #endif  // __cplusplus
 
-extern void nn_setup(void);
-extern int nn_classify(void);
+int nn_setup(void);
+int nn_classify(void);
 
 #ifdef __cplusplus
 }  // extern "C"

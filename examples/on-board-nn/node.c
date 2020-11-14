@@ -11,8 +11,6 @@ typedef void (*DebugLogCallback)(const char* s);
 // called before the first call to DebugLog().
 void RegisterDebugLogCallback(DebugLogCallback callback);
 
-extern int nn_classify(void);
-
 #define NUM_TESTS 10
 
 void callback(const char* s)
@@ -44,9 +42,9 @@ PROCESS_THREAD(node_process, ev, data)
 
   RegisterDebugLogCallback(callback);
 
-  nn_setup();
-
-  classify();
+  if(nn_setup() >= 0) {
+    classify();
+  }
 
   PROCESS_END();
 }

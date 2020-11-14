@@ -4,58 +4,64 @@ extern "C" {
 #include "exported-nn.c"
 }
 
+// This constant represents the range of x values our model was trained on,
+// which is from 0 to (2 * Pi). We approximate Pi to avoid requiring additional
+// libraries.
+const float kXrange = 2.f * 3.14159265359f;
+
+// This constant determines the number of inferences to perform across the range
+// of x values defined above. Since each inference takes time, the higher this
+// number, the more time it will take to run through the entire range. The value
+// of this constant can be tuned so that one full cycle takes a desired amount
+// of time. Since different devices take different amounts of time to perform
+// inference, this value should be defined per-device.
+const int kInferencesPerCycle = 1000;
+
+
+#include "tensorflow/lite/micro/all_ops_resolver.h"
+// #include "tensorflow/lite/micro/examples/hello_world/constants.h"
+// #include "tensorflow/lite/micro/examples/hello_world/model.h"
+// #include "tensorflow/lite/micro/examples/hello_world/output_handler.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
-#include "tensorflow/lite/micro/all_ops_resolver.h"
-
-
-tflite::ErrorReporter* error_reporter = nullptr;
-const tflite::Model* model = nullptr;
-tflite::MicroInterpreter* interpreter = nullptr;
-TfLiteTensor* model_input = nullptr;
-int input_length;
-
-// Create an area of memory to use for input, output, and intermediate arrays.
-// The size of this will depend on the model you're using, and may need to be
-// determined by experimentation.
-constexpr int tensor_arena_size = 60 * 1024;
-uint8_t tensor_arena[tensor_arena_size];
 
 void operator delete(void*) {
   /* no-op */
 }
 
-int nn_classify_single(const float features[])
-{
-  model_input->data.f[0] = 0;
 
-  // Run inference, and report any error.
-  TfLiteStatus invoke_status = interpreter->Invoke();
-  if (invoke_status != kTfLiteOk) {
-    TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed on index\n");
-    return 0;
-  }
+// Globals, used for compatibility with Arduino-style sketches.
+namespace {
+tflite::ErrorReporter* error_reporter = nullptr;
+const tflite::Model* model = nullptr;
+tflite::MicroInterpreter* interpreter = nullptr;
+TfLiteTensor* input = nullptr;
+TfLiteTensor* output = nullptr;
+int inference_count = 0;
 
-  float *f = interpreter->output(0)->data.f;
+// Create an area of memory to use for input, output, and intermediate arrays.
+// Minimum arena size, at the time of writing. After allocating tensors
+// you can retrieve this value by invoking interpreter.arena_used_bytes().
+const int kModelArenaSize = 754;
+// Extra headroom for model + alignment + future interpreter changes.
+const int kExtraArenaSize = 554 + 16 + 100;
+const int kTensorArenaSize = kModelArenaSize + kExtraArenaSize;
+uint8_t tensor_arena[kTensorArenaSize];
+}  // namespace
 
-  TF_LITE_REPORT_ERROR(error_reporter, "Output 0: %f\n",
-                       f[0]);
-
-  return 0;
-}
-
-extern "C" void nn_setup(void)
-{
+// The name of this function is important for Arduino compatibility.
+void setup() {
   // Set up logging. Google style is to avoid globals or statics because of
   // lifetime uncertainty, but since this has a trivial destructor it's okay.
-  static tflite::MicroErrorReporter micro_error_reporter;  // NOLINT
+  // NOLINTNEXTLINE(runtime-global-variables)
+  static tflite::MicroErrorReporter micro_error_reporter;
   error_reporter = &micro_error_reporter;
 
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
+//  model = tflite::GetModel(g_model);
   model = tflite::GetModel(feature_nn_tflite);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     TF_LITE_REPORT_ERROR(error_reporter,
@@ -65,43 +71,115 @@ extern "C" void nn_setup(void)
     return;
   }
 
-  tflite::AllOpsResolver resolver;
+  // This pulls in all the operation implementations we need.
+  // NOLINTNEXTLINE(runtime-global-variables)
+  static tflite::AllOpsResolver resolver;
 
-  static tflite::MicroInterpreter static_interpreter(model, resolver, tensor_arena,
-                                                     tensor_arena_size, error_reporter);
-
+  // Build an interpreter to run the model with.
+  static tflite::MicroInterpreter static_interpreter(
+      model, resolver, tensor_arena, kTensorArenaSize, error_reporter);
   interpreter = &static_interpreter;
 
-  interpreter->AllocateTensors();
-
-  model_input = interpreter->input(0);
-
-  TF_LITE_REPORT_ERROR(error_reporter,
-      "dims->size=%u\n", model_input->dims);
-
-  if (/*(model_input->dims->size != 4) || (model_input->dims->data[0] != 1) ||
-      (model_input->dims->data[1] != 128) ||
-      (model_input->dims->data[2] != kChannelNumber) || */
-      (model_input->type != kTfLiteFloat32)) {
-    TF_LITE_REPORT_ERROR(error_reporter,
-                         "Bad input tensor parameters in model");
+  // Allocate memory from the tensor_arena for the model's tensors.
+  TfLiteStatus allocate_status = interpreter->AllocateTensors();
+  if (allocate_status != kTfLiteOk) {
+    TF_LITE_REPORT_ERROR(error_reporter, "AllocateTensors() failed");
     return;
   }
 
-  input_length = model_input->bytes / sizeof(float);
+  // Obtain pointers to the model's input and output tensors.
+  input = interpreter->input(0);
+  output = interpreter->output(0);
+
 
   TF_LITE_REPORT_ERROR(error_reporter,
-      "Hello world from TF!\n");
+      "interpreter.arena_used_bytes()=%u\n", interpreter->arena_used_bytes());
+  TF_LITE_REPORT_ERROR(error_reporter,
+      "input=%u\n", (uint32_t)input);
+  TF_LITE_REPORT_ERROR(error_reporter,
+      "dims=%u\n", (uint32_t)input->dims);
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "dims->size=%u\n", (uint32_t)input->dims->size);
+
+//  TF_LITE_REPORT_ERROR(error_reporter,
+//      "input=%u dims=%u dims->size=%u\n", (uint32_t)input, (uint32_t)input->dims, input->dims->size);
+
+//  if (/*(input->dims->size != 4) || (input->dims->data[0] != 1) ||
+//      (input->dims->data[1] != 128) ||
+//      (input->dims->data[2] != kChannelNumber) || */
+
+
+// Keep track of how many inferences we have performed.
+  inference_count = 0;
+}
+
+// The name of this function is important for Arduino compatibility.
+void loop() {
+  // Calculate an x value to feed into the model. We compare the current
+  // inference_count to the number of inferences per cycle to determine
+  // our position within the range of possible x values the model was
+  // trained on, and use this to calculate a value.
+  // float position = static_cast<float>(inference_count) /
+  //                  static_cast<float>(kInferencesPerCycle);
+  // float x = position * kXrange;
+
+  // // Quantize the input from floating-point to integer
+  // int8_t x_quantized = x / input->params.scale + input->params.zero_point;
+  // // Place the quantized input in the model's input tensor
+  // input->data.int8[0] = x_quantized;
+
+  // // Run inference, and report any error
+  // TfLiteStatus invoke_status = interpreter->Invoke();
+  // if (invoke_status != kTfLiteOk) {
+  //   TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed on x: %f\n",
+  //                        static_cast<double>(x));
+  //   return;
+  // }
+
+  // // Obtain the quantized output from model's output tensor
+  // int8_t y_quantized = output->data.int8[0];
+  // // Dequantize the output from integer to floating-point
+  // float y = (y_quantized - output->params.zero_point) * output->params.scale;
+
+  // // Output the results.
+  // TF_LITE_REPORT_ERROR(error_reporter, "x=%f y=%f\n", x, y);
+
+  // // Increment the inference_counter, and reset it if we have reached
+  // // the total number per cycle
+  // inference_count += 1;
+  // if (inference_count >= kInferencesPerCycle) inference_count = 0;
+
+  const float *f = data[inference_count * 200];
+  int i;
+  for (i = 0; i < NUM_FEATURES; ++i) {
+    input->data.f[i] = f[i];
+  }
+
+  // Run inference, and report any error
+  TfLiteStatus invoke_status = interpreter->Invoke();
+  if (invoke_status != kTfLiteOk) {
+    TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed\n");
+    return;
+  }
+
+  TF_LITE_REPORT_ERROR(error_reporter, "output\n");
+  for (i = 0; i < NUM_CLASSES; ++i) {
+    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%f\n", i,  output->data.f[i]);
+  }
+
+
+  inference_count++;
+}
+
+
+extern "C" int nn_setup(void)
+{
+  setup();
+  return 0;
 }
 
 extern "C" int nn_classify(void)
 {
-    int i;
-    int dummy = 0;
-    for (i = 0; i < NUM_DATA; ++i) {
-        dummy += nn_classify_single(data[i]);
-    }
-    printf("classified from C++!\n");
-    return dummy;
+  loop();
+  return 0;
 }
-
