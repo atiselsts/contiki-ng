@@ -531,8 +531,6 @@ include $(CONTIKI)/Makefile.gcc
 # the match-anything rule below instead.
 %: %.c
 
-#%: %.cpp
-
 ifeq ($(PLATFORM_ACTION),skip)
 # Skip this target.
 $(CONTIKI_PROJECT):
