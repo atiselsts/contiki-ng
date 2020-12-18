@@ -258,8 +258,8 @@ ifneq ($(MODULES_IMACROS),)
 endif
 
 CXXFLAGS = $(subst -std=c99,-std=gnu++11,$(CFLAGS))
-CXXFLAGS += -fno-threadsafe-statics -fno-rtti -fno-unwind-tables
-CXXFLAGS += -fno-exceptions -fno-threadsafe-statics -fno-use-cxa-atexit -fpermissive
+CXXFLAGS += -fpermissive -fno-exceptions -fno-unwind-tables
+CXXFLAGS += -fno-threadsafe-statics -fno-rtti -fno-use-cxa-atexit
 
 ### Verbosity control. Use  make V=1  to get verbose builds.
 

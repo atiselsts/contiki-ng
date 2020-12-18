@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2004, Swedish Institute of Computer Science.
- * All rights reserved.
+ * Copyright (c) 2020, Institute of Electronics and Computer Science.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,64 +24,30 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
- *
- * Author: Adam Dunkels <adam@sics.se>
- *
  */
 
+/**
+ * \file
+ *         Application that demonstrates how to include C++ code in Contiki-NG.
+ * \author
+ *         Atis Elsts <atis.elsts@edi.lv>
+ */
+
+#include "contiki.h"
 #include <stdio.h>
-#include <dirent.h>
-#include <string.h>
-
-#define CFS_IMPL 1
-#include "cfs/cfs.h"
-
-struct cfs_posix_dir {
-  DIR *dirp;
-};
-
 /*---------------------------------------------------------------------------*/
-int
-cfs_opendir(struct cfs_dir *p, const char *n)
-{
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
-
-  dir->dirp = opendir(n);
-  return dir->dirp == NULL;
-}
+/* Defined in C++ code */
+uint8_t wrapper_function(void);
 /*---------------------------------------------------------------------------*/
-int
-cfs_readdir(struct cfs_dir *p, struct cfs_dirent *e)
-{
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
-  struct dirent *res;
-
-  if(dir->dirp == NULL) {
-    return -1;
-  }
-  res = readdir(dir->dirp);
-  if(res == NULL) {
-    return -1;
-  }
-  strncpy(e->name, res->d_name, sizeof(e->name) - 1);
-  e->name[sizeof(e->name) - 1] = '\0';
-#if defined(__APPLE2__) || defined(__CBM__)
-  e->size = res->d_blocks;
-#else /* __APPLE2__ || __CBM__ */
-  e->size = 0;
-#endif /* __APPLE2__ || __CBM__ */
-  return 0;
-}
+PROCESS(node_process, "Node process");
+AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
-void
-cfs_closedir(struct cfs_dir *p)
+PROCESS_THREAD(node_process, ev, data)
 {
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
+  PROCESS_BEGIN();
 
-  if(dir->dirp != NULL) {
-    closedir(dir->dirp);
-  }
+  printf("C++ code returns: %u\n", wrapper_function());
+
+  PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/

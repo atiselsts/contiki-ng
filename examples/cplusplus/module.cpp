@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2004, Swedish Institute of Computer Science.
- * All rights reserved.
+ * Copyright (c) 2020, Institute of Electronics and Computer Science.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,64 +24,39 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
- *
- * Author: Adam Dunkels <adam@sics.se>
- *
  */
 
-#include <stdio.h>
-#include <dirent.h>
-#include <string.h>
+/**
+ * \file
+ *         A very simple C++ file to demonstrate how to include C++ code in Contiki-NG projects.
+ * \author
+ *         Atis Elsts <atis.elsts@edi.lv>
+ */
 
-#define CFS_IMPL 1
-#include "cfs/cfs.h"
+/* prefix all C header files with `extern "C"` */
+extern "C" {
+#include "contiki.h"
+}
 
-struct cfs_posix_dir {
-  DIR *dirp;
+/*---------------------------------------------------------------------------*/
+class cplusplus_class {
+public:
+  uint8_t i;
+
+  cplusplus_class() : i(13) {}
 };
-
 /*---------------------------------------------------------------------------*/
-int
-cfs_opendir(struct cfs_dir *p, const char *n)
+uint8_t
+cplusplus_function(void)
 {
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
-
-  dir->dirp = opendir(n);
-  return dir->dirp == NULL;
+  cplusplus_class object;
+  return object.i;
 }
 /*---------------------------------------------------------------------------*/
-int
-cfs_readdir(struct cfs_dir *p, struct cfs_dirent *e)
+/* Define the function as `extern "C"` since its called from C code */
+extern "C" uint8_t
+wrapper_function(void)
 {
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
-  struct dirent *res;
-
-  if(dir->dirp == NULL) {
-    return -1;
-  }
-  res = readdir(dir->dirp);
-  if(res == NULL) {
-    return -1;
-  }
-  strncpy(e->name, res->d_name, sizeof(e->name) - 1);
-  e->name[sizeof(e->name) - 1] = '\0';
-#if defined(__APPLE2__) || defined(__CBM__)
-  e->size = res->d_blocks;
-#else /* __APPLE2__ || __CBM__ */
-  e->size = 0;
-#endif /* __APPLE2__ || __CBM__ */
-  return 0;
-}
-/*---------------------------------------------------------------------------*/
-void
-cfs_closedir(struct cfs_dir *p)
-{
-  struct cfs_posix_dir *dir = (struct cfs_posix_dir *)p;
-
-  if(dir->dirp != NULL) {
-    closedir(dir->dirp);
-  }
+  return cplusplus_function();
 }
 /*---------------------------------------------------------------------------*/
