@@ -44,11 +44,15 @@ int inference_count = 0;
 // Create an area of memory to use for input, output, and intermediate arrays.
 // Minimum arena size, at the time of writing. After allocating tensors
 // you can retrieve this value by invoking interpreter.arena_used_bytes().
-const int kModelArenaSize = 754;
+//const int kModelArenaSize = 754;
 // Extra headroom for model + alignment + future interpreter changes.
-const int kExtraArenaSize = 554 + 16 + 100;
-const int kTensorArenaSize = kModelArenaSize + kExtraArenaSize;
+//const int kExtraArenaSize = 554 + 16 + 100;
+//const int kTensorArenaSize = kModelArenaSize + kExtraArenaSize;
+
+constexpr int kTensorArenaSize = 2000;
+
 uint8_t tensor_arena[kTensorArenaSize];
+
 }  // namespace
 
 // The name of this function is important for Arduino compatibility.
@@ -59,10 +63,19 @@ void setup() {
   static tflite::MicroErrorReporter micro_error_reporter;
   error_reporter = &micro_error_reporter;
 
+  printf("get the model\n");
+
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
-//  model = tflite::GetModel(g_model);
+
+  // model = tflite::GetModel(g_model);
   model = tflite::GetModel(feature_nn_tflite);
+
+  TF_LITE_REPORT_ERROR(error_reporter, "reporting via error reporter\n");
+
+  printf("model=%p\n", model);
+  printf("model->version=%lu\n", model->version());
+
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     TF_LITE_REPORT_ERROR(error_reporter,
                          "Model provided is schema version %d not equal "
@@ -83,14 +96,19 @@ void setup() {
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
+    printf("AllocateTensors() failed\n");
+
     TF_LITE_REPORT_ERROR(error_reporter, "AllocateTensors() failed");
     return;
   }
+
+  printf("AllocateTensors() done\n");
 
   // Obtain pointers to the model's input and output tensors.
   input = interpreter->input(0);
   output = interpreter->output(0);
 
+  printf("interpreter.arena_used_bytes()=%u\n", interpreter->arena_used_bytes());
 
   TF_LITE_REPORT_ERROR(error_reporter,
       "interpreter.arena_used_bytes()=%u\n", interpreter->arena_used_bytes());
@@ -149,24 +167,27 @@ void loop() {
   // inference_count += 1;
   // if (inference_count >= kInferencesPerCycle) inference_count = 0;
 
-  const float *f = data[inference_count * 200];
+  const float *f = data[inference_count * 100];
+  printf("feature data at %u (%d %d %d)\n",
+      inference_count * 100, (int)f[0], (int)f[1], (int)f[2]);
+
   int i;
   for (i = 0; i < NUM_FEATURES; ++i) {
     input->data.f[i] = f[i];
+    // input->data.int8[i] = f[i];
   }
 
   // Run inference, and report any error
   TfLiteStatus invoke_status = interpreter->Invoke();
   if (invoke_status != kTfLiteOk) {
-    TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed\n");
+    TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed");
     return;
   }
 
-  TF_LITE_REPORT_ERROR(error_reporter, "output\n");
+  TF_LITE_REPORT_ERROR(error_reporter, "output");
   for (i = 0; i < NUM_CLASSES; ++i) {
-    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%f\n", i,  output->data.f[i]);
+    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%d", i, output->data.int8[i]);
   }
-
 
   inference_count++;
 }
