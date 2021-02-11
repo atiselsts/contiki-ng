@@ -584,7 +584,7 @@ process_dio_init_dag(rpl_dio_t *dio)
   LOG_INFO("initialized DAG with instance ID %u, DAG ID ",
          curr_instance.instance_id);
   LOG_INFO_6ADDR(&curr_instance.dag.dag_id);
-  LOG_INFO_(", prexix ");
+  LOG_INFO_(", prefix ");
   LOG_INFO_6ADDR(&dio->prefix_info.prefix);
   LOG_INFO_("/%u, rank %u\n", dio->prefix_info.length, curr_instance.dag.rank);
 

@@ -103,7 +103,7 @@ rpl_neighbor_snprint(char *buf, int buflen, rpl_nbr_t *nbr)
     return index;
   }
   index += snprintf(buf+index, buflen-index,
-      "%5u, %5u => %5u -- %2u %c%c%c%c%c",
+      " %5u, %5u => %5u -- %2u %c%c%c%c%c",
       nbr->rank,
       rpl_neighbor_get_link_metric(nbr),
       rpl_neighbor_rank_via_nbr(nbr),
