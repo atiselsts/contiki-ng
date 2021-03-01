@@ -222,13 +222,6 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
   if(p == NULL || p->dag == NULL || p->dag->instance == NULL || p->dag->instance->of == NULL) {
     return 0;
   } else {
-#if UIP_ND6_SEND_NS
-    uip_ds6_nbr_t *nbr = rpl_get_nbr(p);
-    /* Exclude links to a neighbor that is not reachable at a NUD level */
-    if(nbr == NULL || nbr->state != NBR_REACHABLE) {
-      return 0;
-    }
-#endif /* UIP_ND6_SEND_NS */
     /* If we don't have fresh link information, assume the parent is reachable. */
     return !rpl_parent_is_fresh(p) || p->dag->instance->of->parent_has_usable_link(p);
   }
@@ -886,12 +879,12 @@ best_parent(rpl_dag_t *dag, int fresh_only)
     }
 
 #if UIP_ND6_SEND_NS
-    {
-    uip_ds6_nbr_t *nbr = rpl_get_nbr(p);
-    /* Exclude links to a neighbor that is not reachable at a NUD level */
-    if(nbr == NULL || nbr->state != NBR_REACHABLE) {
-      continue;
-    }
+    if(fresh_only) {
+      uip_ds6_nbr_t *nbr = rpl_get_nbr(p);
+      /* Exclude links to a neighbor that is not reachable at a NUD level */
+      if(nbr == NULL || nbr->state != NBR_REACHABLE) {
+        continue;
+      }
     }
 #endif /* UIP_ND6_SEND_NS */
 
