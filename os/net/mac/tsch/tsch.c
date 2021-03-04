@@ -439,6 +439,11 @@ eb_input(struct input_packet *current_input)
     }
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
+    /* If this EB is coming from the root, add it to the root list */
+    if(eb_ies.ie_join_priority == 0) {
+      tsch_roots_add_address((linkaddr_t *)&frame.src_addr);
+    }
+
     /* Did the EB come from our time source? */
     if(ts_addr != NULL && linkaddr_cmp((linkaddr_t *)&frame.src_addr, ts_addr)) {
       /* Check for ASN drift */
@@ -727,6 +732,11 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
 
       /* Start sending keep-alives now that tsch_is_associated is set */
       tsch_schedule_keepalive(0);
+
+      /* If this EB is coming from the root, add it to the root list */
+      if(ies.ie_join_priority == 0) {
+        tsch_roots_add_address((linkaddr_t *)&frame.src_addr);
+      }
 
 #ifdef TSCH_CALLBACK_JOINING_NETWORK
       TSCH_CALLBACK_JOINING_NETWORK();
@@ -1060,6 +1070,7 @@ tsch_init(void)
 #endif
 
   tsch_stats_init();
+  tsch_roots_init();
 }
 /*---------------------------------------------------------------------------*/
 /* Function send for TSCH-MAC, puts the packet in packetbuf in the MAC queue */

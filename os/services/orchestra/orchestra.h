@@ -56,6 +56,7 @@ extern struct orchestra_rule eb_per_time_source;
 extern struct orchestra_rule unicast_per_neighbor_rpl_storing;
 extern struct orchestra_rule unicast_per_neighbor_rpl_ns;
 extern struct orchestra_rule unicast_per_neighbor_link_based;
+extern struct orchestra_rule special_for_root;
 extern struct orchestra_rule default_common;
 
 extern linkaddr_t orchestra_parent_linkaddr;
@@ -72,5 +73,13 @@ void orchestra_callback_new_time_source(const struct tsch_neighbor *old, const s
 void orchestra_callback_child_added(const linkaddr_t *addr);
 /* Set with #define NETSTACK_CONF_ROUTING_NEIGHBOR_REMOVED_CALLBACK orchestra_callback_child_removed */
 void orchestra_callback_child_removed(const linkaddr_t *addr);
+
+/* Add a TSCH link to the root node.
+ * Called when a new root node is detected to become a direct neighbor.*/
+struct tsch_link *orchestra_add_link_to_root(const linkaddr_t *root);
+
+/* Remove a TSCH link to the root node.
+ * Called when a root node that previously was a direct neighbor times out. */
+void orchestra_remove_link_to_root(const linkaddr_t *root);
 
 #endif /* __ORCHESTRA_H__ */
