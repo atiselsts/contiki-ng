@@ -347,7 +347,6 @@ uint8_t rf_core_is_accessible(void);
  * \brief Sends a command to the RF core.
  *
  * \param cmd The command value or a pointer to a command buffer
- * \param status A pointer to a variable which will hold the status
  * \return RF_CORE_CMD_OK or RF_CORE_CMD_ERROR
  *
  * This function supports all three types of command (Radio OP, immediate and
@@ -365,12 +364,11 @@ uint8_t rf_core_is_accessible(void);
  * The caller is responsible of allocating and populating cmd for Radio OP and
  * immediate commands
  *
- * The caller is responsible for allocating status
  *
  * For immediate commands and radio Ops, this function will set the command's
  * status field to RF_CORE_RADIO_OP_STATUS_IDLE before sending it to the RF
  */
-uint_fast8_t rf_core_send_cmd(uint32_t cmd, uint32_t *status);
+uint_fast8_t rf_core_send_cmd(uint32_t cmd);
 
 /**
  * \brief Block and wait for a Radio op to complete

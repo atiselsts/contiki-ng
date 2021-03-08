@@ -282,7 +282,6 @@ transmitting(void)
 static radio_value_t
 get_rssi(void)
 {
-  uint32_t cmd_status;
   int8_t rssi;
   uint8_t attempts = 0;
   uint8_t was_off = 0;
@@ -303,12 +302,12 @@ get_rssi(void)
     memset(&cmd, 0x00, sizeof(cmd));
     cmd.commandNo = CMD_GET_RSSI;
 
-    if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-      PRINTF("get_rssi: CMDSTA=0x%08lx\n", cmd_status);
+    if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
+      PRINTF("get_rssi: CMDSTA=0x%08lx\n", rf_core_cmd_status());
       break;
     } else {
       /* Current RSSI in bits 23:16 of cmd_status */
-      rssi = (cmd_status >> 16) & 0xFF;
+      rssi = (rf_core_cmd_status() >> 16) & 0xFF;
     }
   }
 
@@ -403,7 +402,6 @@ set_tx_power(radio_value_t power)
 static int
 prop_div_radio_setup(void)
 {
-  uint32_t cmd_status;
   rfc_radioOp_t *cmd = (rfc_radioOp_t *)&smartrf_settings_cmd_prop_radio_div_setup;
 
   rf_switch_select_path(RF_SWITCH_PATH_SUBGHZ);
@@ -421,16 +419,16 @@ prop_div_radio_setup(void)
     RF_CORE_PROP_BIAS_MODE;
 
   /* Send Radio setup to RF Core */
-  if(rf_core_send_cmd((uint32_t)cmd, &cmd_status) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)cmd) != RF_CORE_CMD_OK) {
     PRINTF("prop_div_radio_setup: DIV_SETUP, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd->status);
+           rf_core_cmd_status(), cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until radio setup is done */
   if(rf_core_wait_cmd_done(cmd) != RF_CORE_CMD_OK) {
     PRINTF("prop_div_radio_setup: DIV_SETUP wait, CMDSTA=0x%08lx,"
-           "status=0x%04x\n", cmd_status, cmd->status);
+           "status=0x%04x\n", rf_core_cmd_status(), cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -440,7 +438,6 @@ prop_div_radio_setup(void)
 static uint8_t
 rf_cmd_prop_rx()
 {
-  uint32_t cmd_status;
   volatile rfc_CMD_PROP_RX_ADV_t *cmd_rx_adv;
   int ret;
 
@@ -458,11 +455,11 @@ rf_cmd_prop_rx()
    */
   cmd_rx_adv->maxPktLen = DOT_4G_MAX_FRAME_LEN - cmd_rx_adv->lenOffset;
 
-  ret = rf_core_send_cmd((uint32_t)cmd_rx_adv, &cmd_status);
+  ret = rf_core_send_cmd((uint32_t)cmd_rx_adv);
 
   if(ret != RF_CORE_CMD_OK) {
     PRINTF("rf_cmd_prop_rx: send_cmd ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
-           ret, cmd_status, cmd_rx_adv->status);
+           ret, rf_core_cmd_status(), cmd_rx_adv->status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -472,7 +469,7 @@ rf_cmd_prop_rx()
   /* Wait to enter RX */
   if(cmd_rx_adv->status != RF_CORE_RADIO_OP_STATUS_ACTIVE) {
     PRINTF("rf_cmd_prop_rx: CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd_rx_adv->status);
+           rf_core_cmd_status(), cmd_rx_adv->status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -521,7 +518,6 @@ rx_on_prop(void)
 static int
 rx_off_prop(void)
 {
-  uint32_t cmd_status;
   int ret;
 
 #if MAC_CONF_WITH_TSCH
@@ -538,8 +534,8 @@ rx_off_prop(void)
   RTIMER_BUSYWAIT_UNTIL(!transmitting(), RF_CORE_TX_FINISH_TIMEOUT);
 
   /* Send a CMD_ABORT command to RF Core */
-  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("rx_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT)) != RF_CORE_CMD_OK) {
+    PRINTF("rx_off_prop: CMD_ABORT status=0x%08lx\n", rf_core_cmd_status());
     /* Continue nonetheless */
   }
 
@@ -578,20 +574,19 @@ LPM_MODULE(prop_lpm_module, request, NULL, NULL, LPM_DOMAIN_NONE);
 static int
 prop_fs(void)
 {
-  uint32_t cmd_status;
   rfc_radioOp_t *cmd = (rfc_radioOp_t *)&smartrf_settings_cmd_fs;
 
   /* Send the command to the RF Core */
-  if(rf_core_send_cmd((uint32_t)cmd, &cmd_status) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)cmd) != RF_CORE_CMD_OK) {
     PRINTF("prop_fs: CMD_FS, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd->status);
+           rf_core_cmd_status(), cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until the command is done */
   if(rf_core_wait_cmd_done(cmd) != RF_CORE_CMD_OK) {
     PRINTF("prop_fs: CMD_FS wait, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd->status);
+            rf_core_cmd_status(), cmd->status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -601,7 +596,6 @@ prop_fs(void)
 static void
 soft_off_prop(void)
 {
-  uint32_t cmd_status;
   volatile rfc_radioOp_t *cmd = rf_core_get_last_radio_op();
 
   if(!rf_core_is_accessible()) {
@@ -609,8 +603,8 @@ soft_off_prop(void)
   }
 
   /* Send a CMD_ABORT command to RF Core */
-  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("soft_off_prop: CMD_ABORT status=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT)) != RF_CORE_CMD_OK) {
+    PRINTF("soft_off_prop: CMD_ABORT status=0x%08lx\n", rf_core_cmd_status());
     return;
   }
 
@@ -697,7 +691,6 @@ transmit(unsigned short transmit_len)
 {
   int ret;
   uint8_t was_off = 0;
-  uint32_t cmd_status;
   volatile rfc_CMD_PROP_TX_ADV_t *cmd_tx_adv;
 
   /* Length in .15.4g PHY HDR. Includes the CRC but not the HDR itself */
@@ -745,7 +738,7 @@ transmit(unsigned short transmit_len)
   /* Enable the LAST_COMMAND_DONE interrupt to wake us up */
   rf_core_cmd_done_en(false);
 
-  ret = rf_core_send_cmd((uint32_t)cmd_tx_adv, &cmd_status);
+  ret = rf_core_send_cmd((uint32_t)cmd_tx_adv);
 
   if(ret) {
     /* If we enter here, TX actually started */
@@ -776,7 +769,7 @@ transmit(unsigned short transmit_len)
   } else {
     /* Failure sending the CMD_PROP_TX command */
     PRINTF("transmit: PROP_TX_ERR ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
-           ret, cmd_status, cmd_tx_adv->status);
+           ret, rf_core_cmd_status(), cmd_tx_adv->status);
     ret = RADIO_TX_ERR;
   }
 
@@ -931,7 +924,6 @@ static int
 channel_clear(void)
 {
   uint8_t was_off = 0;
-  uint32_t cmd_status;
   int8_t rssi = RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN;
 
   /*
@@ -959,12 +951,11 @@ channel_clear(void)
   }
 
   while(rssi == RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN || rssi == 0) {
-    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_GET_RSSI), &cmd_status)
-       != RF_CORE_CMD_OK) {
+    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_GET_RSSI)) != RF_CORE_CMD_OK) {
       break;
     }
     /* Current RSSI in bits 23:16 of cmd_status */
-    rssi = (cmd_status >> 16) & 0xFF;
+    rssi = (rf_core_cmd_status() >> 16) & 0xFF;
   }
 
   if(was_off) {
@@ -1158,8 +1149,7 @@ on(void)
 
     /* Looks like a command was alredy pending on radio. */
     /* Abort any existing commands */
-    uint32_t status;
-    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &status) == RF_CORE_CMD_ERROR) {
+    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT)) == RF_CORE_CMD_ERROR) {
       PRINTF("on: CMD_ABORT status=0x%08lx\n", rf_core_cmd_status());
       return RF_CORE_CMD_ERROR;
     }

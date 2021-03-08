@@ -130,10 +130,9 @@ static uint32_t ble_overrides[] = {
 unsigned short
 rf_ble_cmd_send(uint8_t *command)
 {
-  uint32_t cmdsta;
   rfc_radioOp_t *cmd = (rfc_radioOp_t *)command;
 
-  if(rf_core_send_cmd((uint32_t)cmd, &cmdsta) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)cmd) != RF_CORE_CMD_OK) {
     LOG_ERR("rf_ble_cmd_send() could not send cmd. status: 0x%04X\n",
             CMD_GET_STATUS(cmd));
     return RF_BLE_CMD_ERROR;
@@ -513,14 +512,12 @@ rf_ble_cmd_create_master_params(uint8_t *params, dataQueue_t *rx_queue,
 unsigned short
 rf_ble_cmd_add_data_queue_entry(dataQueue_t *q, uint8_t *e)
 {
-  uint32_t cmdsta;
-
   rfc_CMD_ADD_DATA_ENTRY_t cmd;
   cmd.commandNo = CMD_ADD_DATA_ENTRY;
   cmd.pQueue = q;
   cmd.pEntry = e;
 
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmdsta) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)&cmd) != RF_CORE_CMD_OK) {
     LOG_ERR("could not add entry to data queue. status: 0x%04X\n",
             CMD_GET_STATUS(&cmd));
     return RF_BLE_CMD_ERROR;

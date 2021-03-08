@@ -284,7 +284,6 @@ rf_is_on(void)
 static uint8_t
 transmitting(void)
 {
-  uint32_t cmd_status;
   rfc_CMD_IEEE_CCA_REQ_t cmd;
 
   /* If we are off, we are not in TX */
@@ -296,8 +295,8 @@ transmitting(void)
 
   cmd.commandNo = CMD_IEEE_CCA_REQ;
 
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-    PRINTF("transmitting: CMDSTA=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
+    PRINTF("transmitting: CMDSTA=0x%08lx\n", rf_core_cmd_status());
     return 0;
   }
 
@@ -323,7 +322,6 @@ transmitting(void)
 static uint8_t
 get_cca_info(void)
 {
-  uint32_t cmd_status;
   rfc_CMD_IEEE_CCA_REQ_t cmd;
 
   if(!rf_is_on()) {
@@ -338,8 +336,8 @@ get_cca_info(void)
     memset(&cmd, 0x00, sizeof(cmd));
     cmd.commandNo = CMD_IEEE_CCA_REQ;
 
-    if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-      PRINTF("get_cca_info: CMDSTA=0x%08lx\n", cmd_status);
+    if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
+      PRINTF("get_cca_info: CMDSTA=0x%08lx\n", rf_core_cmd_status());
 
       return RF_CORE_GET_CCA_INFO_ERROR;
     }
@@ -359,7 +357,6 @@ get_cca_info(void)
 static radio_value_t
 get_rssi(void)
 {
-  uint32_t cmd_status;
   uint8_t was_off = 0;
   rfc_CMD_IEEE_CCA_REQ_t cmd;
 
@@ -379,8 +376,8 @@ get_rssi(void)
     memset(&cmd, 0x00, sizeof(cmd));
     cmd.commandNo = CMD_IEEE_CCA_REQ;
 
-    if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-      PRINTF("get_rssi: CMDSTA=0x%08lx\n", cmd_status);
+    if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
+      PRINTF("get_rssi: CMDSTA=0x%08lx\n", rf_core_cmd_status());
 
       /* Make sure to return RSSI unknown */
       cmd.currentRssi = RF_CORE_CMD_CCA_REQ_RSSI_UNKNOWN;
@@ -412,7 +409,6 @@ get_tx_power(void)
 static void
 set_tx_power(radio_value_t power)
 {
-  uint32_t cmd_status;
   int i;
   rfc_CMD_SET_TX_POWER_t cmd;
 
@@ -438,15 +434,14 @@ set_tx_power(radio_value_t power)
   cmd.commandNo = CMD_SET_TX_POWER;
   cmd.txPower = output_power[i].tx_power;
 
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-    PRINTF("set_tx_power: CMDSTA=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
+    PRINTF("set_tx_power: CMDSTA=0x%08lx\n", rf_core_cmd_status());
   }
 }
 /*---------------------------------------------------------------------------*/
 static uint8_t
 rf_radio_setup()
 {
-  uint32_t cmd_status;
   rfc_CMD_RADIO_SETUP_t cmd;
 
   rf_switch_select_path(RF_SWITCH_PATH_2_4GHZ);
@@ -461,16 +456,16 @@ rf_radio_setup()
   cmd.mode = 1;
 
   /* Send Radio setup to RF Core */
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)&cmd) != RF_CORE_CMD_OK) {
     PRINTF("rf_radio_setup: CMD_RADIO_SETUP, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd.status);
+           rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until radio setup is done */
   if(rf_core_wait_cmd_done(&cmd) != RF_CORE_CMD_OK) {
     PRINTF("rf_radio_setup: CMD_RADIO_SETUP wait, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd.status);
+           rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -490,14 +485,13 @@ rf_radio_setup()
 static uint8_t
 rf_cmd_ieee_rx()
 {
-  uint32_t cmd_status;
   int ret;
 
-  ret = rf_core_send_cmd((uint32_t)cmd_ieee_rx_buf, &cmd_status);
+  ret = rf_core_send_cmd((uint32_t)cmd_ieee_rx_buf);
 
   if(ret != RF_CORE_CMD_OK) {
     PRINTF("rf_cmd_ieee_rx: ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
-           ret, cmd_status, RF_RADIO_OP_GET_STATUS(cmd_ieee_rx_buf));
+           ret, rf_core_cmd_status(), RF_RADIO_OP_GET_STATUS(cmd_ieee_rx_buf));
     return RF_CORE_CMD_ERROR;
   }
 
@@ -507,7 +501,7 @@ rf_cmd_ieee_rx()
   /* Wait to enter RX */
   if(RF_RADIO_OP_GET_STATUS(cmd_ieee_rx_buf) != RF_CORE_RADIO_OP_STATUS_ACTIVE) {
     PRINTF("rf_cmd_ieee_rx: CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, RF_RADIO_OP_GET_STATUS(cmd_ieee_rx_buf));
+           rf_core_cmd_status(), RF_RADIO_OP_GET_STATUS(cmd_ieee_rx_buf));
     return RF_CORE_CMD_ERROR;
   }
 
@@ -648,7 +642,6 @@ rx_on(void)
 static int
 rx_off(void)
 {
-  uint32_t cmd_status;
   int ret;
 
   /* If we are off, do nothing */
@@ -660,8 +653,8 @@ rx_off(void)
   RTIMER_BUSYWAIT_UNTIL(!transmitting(), RF_CORE_TX_FINISH_TIMEOUT);
 
   /* Send a CMD_ABORT command to RF Core */
-  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("RX off: CMD_ABORT status=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT)) != RF_CORE_CMD_OK) {
+    PRINTF("RX off: CMD_ABORT status=0x%08lx\n", rf_core_cmd_status());
     /* Continue nonetheless */
   }
 
@@ -700,7 +693,6 @@ LPM_MODULE(cc26xx_rf_lpm_module, request, NULL, NULL, LPM_DOMAIN_NONE);
 static void
 soft_off(void)
 {
-  uint32_t cmd_status;
   volatile rfc_radioOp_t *cmd = rf_core_get_last_radio_op();
 
   if(!rf_core_is_accessible()) {
@@ -711,8 +703,8 @@ soft_off(void)
          cmd->status);
 
   /* Send a CMD_ABORT command to RF Core */
-  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("soft_off: CMD_ABORT status=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_ABORT)) != RF_CORE_CMD_OK) {
+    PRINTF("soft_off: CMD_ABORT status=0x%08lx\n", rf_core_cmd_status());
     return;
   }
 
@@ -793,7 +785,6 @@ transmit(unsigned short transmit_len)
 {
   int ret;
   uint8_t was_off = 0;
-  uint32_t cmd_status;
   uint16_t stat;
   uint8_t tx_active = 0;
   rtimer_clock_t t0;
@@ -846,7 +837,7 @@ transmit(unsigned short transmit_len)
   /* Enable the LAST_FG_COMMAND_DONE interrupt, which will wake us up */
   rf_core_cmd_done_en(true);
 
-  ret = rf_core_send_cmd((uint32_t)&cmd, &cmd_status);
+  ret = rf_core_send_cmd((uint32_t)&cmd);
 
   if(ret) {
     /* If we enter here, TX actually started */
@@ -873,13 +864,13 @@ transmit(unsigned short transmit_len)
     } else {
       /* Operation completed, but frame was not sent */
       PRINTF("transmit: ret=%d, CMDSTA=0x%08lx, status=0x%04x\n", ret,
-             cmd_status, stat);
+             rf_core_cmd_status(), stat);
       ret = RADIO_TX_ERR;
     }
   } else {
     /* Failure sending the CMD_IEEE_TX command */
     PRINTF("transmit: ret=%d, CMDSTA=0x%08lx, status=0x%04x\n",
-           ret, cmd_status, cmd.status);
+           ret, rf_core_cmd_status(), cmd.status);
 
     ret = RADIO_TX_ERR;
   }
@@ -1366,13 +1357,12 @@ set_value(radio_param_t param, radio_value_t value)
     old_poll_mode = rf_core_poll_mode;
     rf_core_poll_mode = (value & RADIO_RX_MODE_POLL_MODE) != 0;
     if(rf_core_poll_mode == old_poll_mode) {
-      uint32_t cmd_status;
 
       /* do not turn the radio on and off, just send an update command */
       memcpy(&filter_cmd.newFrameFiltOpt, &cmd->frameFiltOpt, sizeof(cmd->frameFiltOpt));
 
-      if(rf_core_send_cmd((uint32_t)&filter_cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
-        PRINTF("setting address filter failed: CMDSTA=0x%08lx\n", cmd_status);
+      if(rf_core_send_cmd((uint32_t)&filter_cmd) == RF_CORE_CMD_ERROR) {
+        PRINTF("setting address filter failed: CMDSTA=0x%08lx\n", rf_core_cmd_status());
         return RADIO_RESULT_ERROR;
       }
       return RADIO_RESULT_OK;

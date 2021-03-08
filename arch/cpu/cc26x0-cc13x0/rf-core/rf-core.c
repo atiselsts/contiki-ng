@@ -153,7 +153,7 @@ rf_core_is_accessible()
 }
 /*---------------------------------------------------------------------------*/
 uint_fast8_t
-rf_core_send_cmd(uint32_t cmd, uint32_t *status)
+rf_core_send_cmd(uint32_t cmd)
 {
   uint32_t timeout_count = 0;
   bool interrupts_disabled;
@@ -161,7 +161,6 @@ rf_core_send_cmd(uint32_t cmd, uint32_t *status)
 
   /* reset the status variables to invalid values */
   last_cmd_status = (uint32_t)-1;
-  *status = last_cmd_status;
 
   /*
    * If cmd is 4-byte aligned, then it's either a radio OP or an immediate
@@ -207,7 +206,6 @@ rf_core_send_cmd(uint32_t cmd, uint32_t *status)
       if(!interrupts_disabled) {
         ti_lib_int_master_enable();
       }
-      *status = last_cmd_status;
       return RF_CORE_CMD_ERROR;
     }
   } while((last_cmd_status & RF_CORE_CMDSTA_RESULT_MASK) == RF_CORE_CMDSTA_PENDING);
@@ -220,7 +218,6 @@ rf_core_send_cmd(uint32_t cmd, uint32_t *status)
    * If we reach here the command is no longer pending. It is either completed
    * successfully or with error
    */
-  *status = last_cmd_status;
   return (last_cmd_status & RF_CORE_CMDSTA_RESULT_MASK) == RF_CORE_CMDSTA_DONE;
 }
 /*---------------------------------------------------------------------------*/
@@ -256,18 +253,17 @@ static int
 fs_powerdown(void)
 {
   rfc_CMD_FS_POWERDOWN_t cmd;
-  uint32_t cmd_status;
 
   rf_core_init_radio_op((rfc_radioOp_t *)&cmd, sizeof(cmd), CMD_FS_POWERDOWN);
 
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("fs_powerdown: CMDSTA=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd((uint32_t)&cmd) != RF_CORE_CMD_OK) {
+    PRINTF("fs_powerdown: CMDSTA=0x%08lx\n", last_cmd_status);
     return RF_CORE_CMD_ERROR;
   }
 
   if(rf_core_wait_cmd_done(&cmd) != RF_CORE_CMD_OK) {
     PRINTF("fs_powerdown: CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd.status);
+           last_cmd_status, cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -277,7 +273,6 @@ fs_powerdown(void)
 int
 rf_core_power_up()
 {
-  uint32_t cmd_status;
   bool interrupts_disabled = ti_lib_int_master_disable();
 
   ti_lib_int_pend_clear(INT_RFC_CPE_0);
@@ -315,8 +310,8 @@ rf_core_power_up()
                        RFC_PWR_PWMCLKEN_MDMRAM | RFC_PWR_PWMCLKEN_RFERAM);
 
   /* Send ping (to verify RFCore is ready and alive) */
-  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_PING), &cmd_status) != RF_CORE_CMD_OK) {
-    PRINTF("rf_core_power_up: CMD_PING fail, CMDSTA=0x%08lx\n", cmd_status);
+  if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_PING)) != RF_CORE_CMD_OK) {
+    PRINTF("rf_core_power_up: CMD_PING fail, CMDSTA=0x%08lx\n", last_cmd_status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -326,7 +321,6 @@ rf_core_power_up()
 uint8_t
 rf_core_start_rat(void)
 {
-  uint32_t cmd_status;
   rfc_CMD_SYNC_START_RAT_t cmd_start;
 
   /* Start radio timer (RAT) */
@@ -335,16 +329,16 @@ rf_core_start_rat(void)
   /* copy the value and send back */
   cmd_start.rat0 = rat_offset;
 
-  if(rf_core_send_cmd((uint32_t)&cmd_start, &cmd_status) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)&cmd_start) != RF_CORE_CMD_OK) {
     PRINTF("rf_core_get_rat_rtc_offset: SYNC_START_RAT fail, CMDSTA=0x%08lx\n",
-           cmd_status);
+           last_cmd_status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until done (?) */
   if(rf_core_wait_cmd_done(&cmd_start) != RF_CORE_CMD_OK) {
     PRINTF("rf_core_cmd_ok: SYNC_START_RAT wait, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd_start.status);
+           last_cmd_status, cmd_start.status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -355,14 +349,13 @@ uint8_t
 rf_core_stop_rat(void)
 {
   rfc_CMD_SYNC_STOP_RAT_t cmd_stop;
-  uint32_t cmd_status;
 
   rf_core_init_radio_op((rfc_radioOp_t *)&cmd_stop, sizeof(cmd_stop), CMD_SYNC_STOP_RAT);
 
-  int ret = rf_core_send_cmd((uint32_t)&cmd_stop, &cmd_status);
+  int ret = rf_core_send_cmd((uint32_t)&cmd_stop);
   if(ret != RF_CORE_CMD_OK) {
     PRINTF("rf_core_get_rat_rtc_offset: SYNC_STOP_RAT fail, ret %d CMDSTA=0x%08lx\n",
-           ret, cmd_status);
+           ret, last_cmd_status);
     return ret;
   }
 
@@ -370,7 +363,7 @@ rf_core_stop_rat(void)
   ret = rf_core_wait_cmd_done(&cmd_stop);
   if(ret != RF_CORE_CMD_OK) {
     PRINTF("rf_core_cmd_ok: SYNC_STOP_RAT wait, CMDSTA=0x%08lx, status=0x%04x\n",
-        cmd_status, cmd_stop.status);
+        last_cmd_status, cmd_stop.status);
     return ret;
   }
 

@@ -144,7 +144,6 @@ PROCESS(rf_ble_beacon_process, "CC13xx / CC26xx RF BLE Beacon Process");
 static int
 send_ble_adv_nc(int channel, uint8_t *adv_payload, int adv_payload_len)
 {
-  uint32_t cmd_status;
   rfc_CMD_BLE_ADV_NC_t cmd;
   rfc_bleAdvPar_t *params;
 
@@ -172,16 +171,16 @@ send_ble_adv_nc(int channel, uint8_t *adv_payload, int adv_payload_len)
   params->advLen = adv_payload_len;
   params->pAdvData = adv_payload;
 
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) == RF_CORE_CMD_ERROR) {
+  if(rf_core_send_cmd((uint32_t)&cmd) == RF_CORE_CMD_ERROR) {
     PRINTF("send_ble_adv_nc: Chan=%d CMDSTA=0x%08lx, status=0x%04x\n",
-           channel, cmd_status, cmd.status);
+           channel, rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until the command is done */
   if(rf_core_wait_cmd_done(&cmd) != RF_CORE_CMD_OK) {
     PRINTF("send_ble_adv_nc: Chan=%d CMDSTA=0x%08lx, status=0x%04x\n",
-           channel, cmd_status, cmd.status);
+           channel, rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -272,7 +271,6 @@ rf_ble_beacond_stop()
 static uint8_t
 rf_radio_setup()
 {
-  uint32_t cmd_status;
   rfc_CMD_RADIO_SETUP_t cmd;
 
   rf_switch_select_path(RF_SWITCH_PATH_2_4GHZ);
@@ -287,16 +285,16 @@ rf_radio_setup()
   cmd.mode = 0;
 
   /* Send Radio setup to RF Core */
-  if(rf_core_send_cmd((uint32_t)&cmd, &cmd_status) != RF_CORE_CMD_OK) {
+  if(rf_core_send_cmd((uint32_t)&cmd) != RF_CORE_CMD_OK) {
     PRINTF("rf_radio_setup: CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd.status);
+           rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
   /* Wait until radio setup is done */
   if(rf_core_wait_cmd_done(&cmd) != RF_CORE_CMD_OK) {
     PRINTF("rf_radio_setup: wait, CMDSTA=0x%08lx, status=0x%04x\n",
-           cmd_status, cmd.status);
+           rf_core_cmd_status(), cmd.status);
     return RF_CORE_CMD_ERROR;
   }
 
@@ -307,7 +305,6 @@ rf_radio_setup()
 void
 rf_ble_beacon_single(uint8_t channel, uint8_t *data, uint8_t len)
 {
-  uint32_t cmd_status;
   bool interrupts_disabled;
   uint8_t j, channel_selected;
   uint8_t was_on;
@@ -383,9 +380,9 @@ rf_ble_beacon_single(uint8_t channel, uint8_t *data, uint8_t len)
     }
 
     /* Send a CMD_STOP command to RF Core */
-    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_STOP), &cmd_status) != RF_CORE_CMD_OK) {
+    if(rf_core_send_cmd(CMDR_DIR_CMD(CMD_STOP)) != RF_CORE_CMD_OK) {
       /* Continue... */
-      PRINTF("rf_ble_beacon_single: status=0x%08lx\n", cmd_status);
+      PRINTF("rf_ble_beacon_single: status=0x%08lx\n", rf_core_cmd_status());
     }
 
     if(was_on) {
