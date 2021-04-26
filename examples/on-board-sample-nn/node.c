@@ -40,7 +40,7 @@ PROCESS_THREAD(node_process, ev, data)
 {
   PROCESS_BEGIN();
 
-  RegisterDebugLogCallback(callback);
+  // RegisterDebugLogCallback(callback);
 
   if(nn_setup() >= 0) {
     classify();

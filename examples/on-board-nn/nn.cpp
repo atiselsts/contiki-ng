@@ -44,15 +44,20 @@ int inference_count = 0;
 // Create an area of memory to use for input, output, and intermediate arrays.
 // Minimum arena size, at the time of writing. After allocating tensors
 // you can retrieve this value by invoking interpreter.arena_used_bytes().
-const int kModelArenaSize = 754;
+const int kModelArenaSize = 10000;//754;
 // Extra headroom for model + alignment + future interpreter changes.
-const int kExtraArenaSize = 554 + 16 + 100;
+const int kExtraArenaSize = 10000;//554 + 16 + 100;
 const int kTensorArenaSize = kModelArenaSize + kExtraArenaSize;
 uint8_t tensor_arena[kTensorArenaSize];
 }  // namespace
 
 // The name of this function is important for Arduino compatibility.
 void setup() {
+//  printf("nn: setup\n");
+
+  // printf("sizeof(TfLiteTensor)=%u %u sizeof(void*)=%u\n",
+  //     sizeof(TfLiteTensor), alignof(TfLiteTensor), sizeof(input->dims));
+
   // Set up logging. Google style is to avoid globals or statics because of
   // lifetime uncertainty, but since this has a trivial destructor it's okay.
   // NOLINTNEXTLINE(runtime-global-variables)
@@ -62,7 +67,9 @@ void setup() {
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
 //  model = tflite::GetModel(g_model);
-  model = tflite::GetModel(feature_nn_tflite);
+//  model = tflite::GetModel(feature_nn_tflite);
+  model = tflite::GetModel(cnn_quant_int_tflite);
+//  model = tflite::GetModel(test_cnn);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     TF_LITE_REPORT_ERROR(error_reporter,
                          "Model provided is schema version %d not equal "
@@ -80,9 +87,11 @@ void setup() {
       model, resolver, tensor_arena, kTensorArenaSize, error_reporter);
   interpreter = &static_interpreter;
 
+//  printf("alloc tensors\n");
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
+    printf("AllocateTensors() failed\n");
     TF_LITE_REPORT_ERROR(error_reporter, "AllocateTensors() failed");
     return;
   }
@@ -91,15 +100,30 @@ void setup() {
   input = interpreter->input(0);
   output = interpreter->output(0);
 
-
-  TF_LITE_REPORT_ERROR(error_reporter,
-      "interpreter.arena_used_bytes()=%u\n", interpreter->arena_used_bytes());
-  TF_LITE_REPORT_ERROR(error_reporter,
-      "input=%u\n", (uint32_t)input);
-  TF_LITE_REPORT_ERROR(error_reporter,
-      "dims=%u\n", (uint32_t)input->dims);
   // TF_LITE_REPORT_ERROR(error_reporter,
-  //     "dims->size=%u\n", (uint32_t)input->dims->size);
+  //     "interpreter.arena_used_bytes()=%u\n", interpreter->arena_used_bytes());
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "input=%x\n", (uint32_t)input);
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "dims=%x\n", (unsigned)input->dims);
+  // int stack;
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "stack=%x tensor_arena=%x\n", (uint32_t)&stack, (uint32_t)&tensor_arena);
+
+  //   const flatbuffers::Vector<int32_t> *shape() const {
+  //   return GetPointer<const flatbuffers::Vector<int32_t> *>(VT_SHAPE);
+  // }
+
+
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "input->dims->size=%u output->dims->size=%u\n",
+  //     (uint32_t)input->dims->size,
+  //     (uint32_t)output->dims->size);
+
+  // TF_LITE_REPORT_ERROR(error_reporter,
+  //     "input->dims->size=%u\n",
+  //     (uint32_t)input->dims->size);
+
 
 //  TF_LITE_REPORT_ERROR(error_reporter,
 //      "input=%u dims=%u dims->size=%u\n", (uint32_t)input, (uint32_t)input->dims, input->dims->size);
@@ -114,7 +138,8 @@ void setup() {
 }
 
 // The name of this function is important for Arduino compatibility.
-void loop() {
+int loop()
+{
   // Calculate an x value to feed into the model. We compare the current
   // inference_count to the number of inferences per cycle to determine
   // our position within the range of possible x values the model was
@@ -149,26 +174,38 @@ void loop() {
   // inference_count += 1;
   // if (inference_count >= kInferencesPerCycle) inference_count = 0;
 
-  const float *f = data[inference_count * 200];
+  // const float *f = data[inference_count * 200];
+  // int i;
+  // for (i = 0; i < NUM_FEATURES; ++i) {
+  //   input->data.f[i] = f[i];
+  // }
+
   int i;
-  for (i = 0; i < NUM_FEATURES; ++i) {
-    input->data.f[i] = f[i];
+  for (i = 0; i < 3 * 256; ++i) {
+    input->data.int8[i] = 1;
   }
+
 
   // Run inference, and report any error
   TfLiteStatus invoke_status = interpreter->Invoke();
   if (invoke_status != kTfLiteOk) {
     TF_LITE_REPORT_ERROR(error_reporter, "Invoke failed\n");
-    return;
+    return -1;
   }
 
-  TF_LITE_REPORT_ERROR(error_reporter, "output\n");
-  for (i = 0; i < NUM_CLASSES; ++i) {
-    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%f\n", i,  output->data.f[i]);
+//  TF_LITE_REPORT_ERROR(error_reporter, "output\n");
+  int best_class = 0;
+  for (i = 1; i < NUM_CLASSES; ++i) {
+//    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%f\n", i,  output->data.f[i]);
+//    TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%d\n", i,  output->data.int8[i]);
+    if (output->data.int8[i] > output->data.int8[best_class]) {
+      best_class = i;
+    }
+//    result += output->data.int8[i];
   }
 
-
-  inference_count++;
+//  inference_count++;
+  return best_class;
 }
 
 
@@ -180,6 +217,5 @@ extern "C" int nn_setup(void)
 
 extern "C" int nn_classify(void)
 {
-  loop();
-  return 0;
+  return loop();
 }

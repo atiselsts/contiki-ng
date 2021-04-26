@@ -185,8 +185,10 @@ void loop() {
   }
 
   TF_LITE_REPORT_ERROR(error_reporter, "output");
+  printf("output\n");
   for (i = 0; i < NUM_CLASSES; ++i) {
     TF_LITE_REPORT_ERROR(error_reporter, "  out[%d]=%d", i, output->data.int8[i]);
+    printf("  out[%d]=%d\n", i, output->data.int8[i]);
   }
 
   inference_count++;
