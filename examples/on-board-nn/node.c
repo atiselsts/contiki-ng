@@ -12,7 +12,7 @@
 // called before the first call to DebugLog().
 //void RegisterDebugLogCallback(DebugLogCallback callback);
 
-#define NUM_TESTS 1
+#define NUM_TESTS 10
 
 // void callback(const char* s)
 // {

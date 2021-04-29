@@ -187,9 +187,8 @@ int loop()
 
   int i;
   for (i = 0; i < 3 * 256; ++i) {
-    input->data.int8[i] = 1;
+    input->data.int8[i] = raw_data[i];
   }
-
 
   // Run inference, and report any error
   TfLiteStatus invoke_status = interpreter->Invoke();

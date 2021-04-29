@@ -12,4 +12,6 @@ int nn_classify(void);
 }  // extern "C"
 #endif  // __cplusplus
 
+extern const int8_t raw_data[256 * 3];
+
 #endif
