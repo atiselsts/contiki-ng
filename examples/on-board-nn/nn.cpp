@@ -27,9 +27,9 @@ const int kInferencesPerCycle = 1000;
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
 
-void operator delete(void*) {
-  /* no-op */
-}
+// void operator delete(void*) {
+//   /* no-op */
+// }
 
 
 // Globals, used for compatibility with Arduino-style sketches.
@@ -77,6 +77,11 @@ void setup() {
                          model->version(), TFLITE_SCHEMA_VERSION);
     return;
   }
+
+  TF_LITE_REPORT_ERROR(error_reporter,
+      "Model provided is schema version %d,"
+      "supported version %d.",
+      model->version(), TFLITE_SCHEMA_VERSION);
 
   // This pulls in all the operation implementations we need.
   // NOLINTNEXTLINE(runtime-global-variables)

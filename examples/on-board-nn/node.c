@@ -20,11 +20,11 @@
 // }
 
 // override the default debug log in the tensorflow lite micro library
-void DebugLog(const char* s) {
-  if (s && strlen(s) > 2) {
-    printf("contiki: %s", s);
-  }
-}
+// void DebugLog(const char* s) {
+//   if (s && strlen(s) > 2) {
+//      printf("contiki: %s", s);
+//   }
+// }
 
 void classify(void)
 {
