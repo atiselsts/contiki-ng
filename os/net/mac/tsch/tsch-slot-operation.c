@@ -237,21 +237,6 @@ tsch_release_lock(void)
 /*---------------------------------------------------------------------------*/
 /* Channel hopping utility functions */
 
-/* Return the channel offset to use for the current slot */
-static uint8_t
-tsch_get_channel_offset(struct tsch_link *link, struct tsch_packet *p)
-{
-#if TSCH_WITH_LINK_SELECTOR
-  if(p != NULL) {
-    uint16_t packet_channel_offset = queuebuf_attr(p->qb, PACKETBUF_ATTR_TSCH_CHANNEL_OFFSET);
-    if(packet_channel_offset != 0xffff) {
-      /* The schedule specifies a channel offset for this one; use it */
-      return packet_channel_offset;
-    }
-  }
-#endif
-  return link->channel_offset;
-}
 
 /**
  * Returns a 802.15.4 channel from an ASN and channel offset. Basically adds
@@ -268,6 +253,46 @@ tsch_calculate_channel(struct tsch_asn_t *asn, uint16_t channel_offset)
   index_of_0 = TSCH_ASN_MOD(*asn, tsch_hopping_sequence_length);
   index_of_offset = (index_of_0 + channel_offset) % tsch_hopping_sequence_length.val;
   return tsch_hopping_sequence[index_of_offset];
+}
+
+/* Same as above, but selects from the joining sequence */
+static uint8_t
+tsch_calculate_join_channel(struct tsch_asn_t *asn, uint16_t channel_offset)
+{
+  uint16_t index_of_0, index_of_offset;
+  index_of_0 = TSCH_ASN_MOD(*asn, tsch_join_hopping_sequence_length);
+  index_of_offset = (index_of_0 + channel_offset) % tsch_join_hopping_sequence_length.val;
+  return TSCH_JOIN_HOPPING_SEQUENCE[index_of_offset];
+}
+
+
+/* Return the channel offset to use for the current slot */
+static uint8_t
+tsch_get_channel_and_offset(struct tsch_link *link, struct tsch_packet *p, uint8_t *channel_offset)
+{
+  *channel_offset = link->channel_offset;
+#if TSCH_WITH_LINK_SELECTOR
+  if(p != NULL) {
+    uint16_t packet_channel_offset = queuebuf_attr(p->qb, PACKETBUF_ATTR_TSCH_CHANNEL_OFFSET);
+    if(packet_channel_offset != 0xffff) {
+      /* The schedule specifies a channel offset for this one; use it */
+      *channel_offset = packet_channel_offset;
+    }
+  }
+#endif
+
+  uint16_t channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
+
+#ifdef TSCH_CONF_JOIN_HOPPING_SEQUENCE
+  /* if sending EB packet and a custom join hopping sequence is defined, use a channel from that sequence */
+
+  if(p != NULL && link->link_type == LINK_TYPE_ADVERTISING_ONLY) {
+    /* XXX WARNING: this depends on the schedule having dedicated slots for EB packets. Orchestra will work, others may not */
+    channel = tsch_calculate_join_channel(&tsch_current_asn, tsch_current_channel_offset);
+  }
+#endif
+
+  return channel;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1062,8 +1087,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           burst_link_scheduled = 0;
         } else {
           /* Hop channel */
-          tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet);
-          tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
+          tsch_current_channel = tsch_get_channel_and_offset(current_link, current_packet, &tsch_current_channel_offset);
         }
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */

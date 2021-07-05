@@ -399,9 +399,9 @@ set_value(radio_param_t param, radio_value_t value)
     set_send_on_cca((value & RADIO_TX_MODE_SEND_ON_CCA) != 0);
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
-    if(value < 11 || value > 26) {
-      return RADIO_RESULT_INVALID_VALUE;
-    }
+    // if(value < 11 || value > 26) {
+    //   return RADIO_RESULT_INVALID_VALUE;
+    // }
     radio_set_channel(value);
     return RADIO_RESULT_OK;
   default:

@@ -91,6 +91,7 @@ NBR_TABLE(struct eb_stat, eb_stats);
 /* TSCH channel hopping sequence */
 uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
 struct tsch_asn_divisor_t tsch_hopping_sequence_length;
+struct tsch_asn_divisor_t tsch_join_hopping_sequence_length;
 
 /* Default TSCH timeslot timing (in micro-second) */
 static const uint16_t *tsch_default_timing_us;
@@ -1045,6 +1046,8 @@ tsch_init(void)
     LOG_ERR("! TSCH_HOPPING_SEQUENCE_MAX_LEN < sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE). Abort init.\n");
     return;
   }
+
+  TSCH_ASN_DIVISOR_INIT(tsch_join_hopping_sequence_length, sizeof(TSCH_JOIN_HOPPING_SEQUENCE));
 
   /* Init TSCH sub-modules */
 #if TSCH_AUTOSELECT_TIME_SOURCE

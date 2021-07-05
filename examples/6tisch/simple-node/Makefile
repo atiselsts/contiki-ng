@@ -6,7 +6,7 @@ PLATFORMS_EXCLUDE = sky nrf52dk native
 CONTIKI=../../..
 
  # force Orchestra from command line
-MAKE_WITH_ORCHESTRA ?= 0
+MAKE_WITH_ORCHESTRA ?= 1
 # force Security from command line
 MAKE_WITH_SECURITY ?= 0
  # print #routes periodically, used for regression tests
